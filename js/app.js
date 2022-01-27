@@ -99,7 +99,7 @@ const userIntParse = (udata) => {
 // **** empty frame filled by default values
 const getEmptyFrame = () => {
     const frame = {
-        data: [[],[]],
+        data: [[],[],[],[],[],[]],
         colors: [0x28, 0xca, 0x94]
     }
 		for (let r=0;r<options.spriteHeight;r++) {
@@ -591,7 +591,7 @@ const validateOptions = () => {
 
     clampOption('bytesPerLine',1,100000);
     clampOption('spriteHeight',1,128);
-    clampOption('spriteWidth',0,16);
+    clampOption('spriteWidth',4,24);
     clampOption('animationSpeed',1,100);
     
     return true;
