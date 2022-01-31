@@ -1149,21 +1149,11 @@ const flip8Bits = b => reversedBytes[b];
 
 const flipHFrame = () => {
     if (player) { return false };
-    for (let row=0;row<options.spriteHeight;row++){
-        const b0 = reversedBytes[workspace.frames[workspace.selectedFrame].data[0][row]];
-        const b1 = reversedBytes[workspace.frames[workspace.selectedFrame].data[1][row]];
-        if (options.spriteGap > 0) {
-            workspace.frames[workspace.selectedFrame].data[0][row] = b1;
-            workspace.frames[workspace.selectedFrame].data[1][row] = b0;
-            const c = workspace.frames[workspace.selectedFrame].colors[0];
-            workspace.frames[workspace.selectedFrame].colors[0] = workspace.frames[workspace.selectedFrame].colors[1];
-            workspace.frames[workspace.selectedFrame].colors[1] = c;
-            updateColors();
-        } else {
-            workspace.frames[workspace.selectedFrame].data[0][row] = b0;
-            workspace.frames[workspace.selectedFrame].data[1][row] = b1;
-        }
-    }
+
+    for (let row = 0; row < options.spriteHeight; row++)
+      for (let col = 0; col < options.spriteWidth / 2; col++)
+        [ workspace.frames[workspace.selectedFrame].data[col][row], workspace.frames[workspace.selectedFrame].data[options.spriteWidth-col-1][row]] = [ workspace.frames[workspace.selectedFrame].data[options.spriteWidth-col-1][row], workspace.frames[workspace.selectedFrame].data[col][row]]; 
+
     drawEditor();
     storeWorkspace();
     return true;
@@ -1171,18 +1161,11 @@ const flipHFrame = () => {
 
 const flipVFrame = () => {
     if (player) { return false };
-    let first = 0;
-    let last = options.spriteHeight - 1;
-    while (first<last) {
-        const last0 = workspace.frames[workspace.selectedFrame].data[0][last];
-        const last1 = workspace.frames[workspace.selectedFrame].data[1][last];
-        workspace.frames[workspace.selectedFrame].data[0][last] = workspace.frames[workspace.selectedFrame].data[0][first];
-        workspace.frames[workspace.selectedFrame].data[1][last] = workspace.frames[workspace.selectedFrame].data[1][first];
-        workspace.frames[workspace.selectedFrame].data[0][first] = last0;
-        workspace.frames[workspace.selectedFrame].data[1][first] = last1;
-        last--;
-        first++;
-    }
+    
+    for (let row = 0; row < Math.floor(options.spriteHeight / 2); row++)
+      for (let col = 0; col < options.spriteWidth; col++)
+        [ workspace.frames[workspace.selectedFrame].data[col][row], workspace.frames[workspace.selectedFrame].data[col][options.spriteHeight - row - 1]] = [ workspace.frames[workspace.selectedFrame].data[col][options.spriteHeight - row - 1], workspace.frames[workspace.selectedFrame].data[col][row]];
+
     drawEditor();
     storeWorkspace();
     return true;
@@ -1190,12 +1173,13 @@ const flipVFrame = () => {
 
 const moveFrameLeft = () => {
     if (player) { return false };
-    for (let row=0;row<options.spriteHeight;row++){
-        const b0 = (workspace.frames[workspace.selectedFrame].data[0][row] << 1) & 0xff;
-        const b1 = (workspace.frames[workspace.selectedFrame].data[1][row] << 1) & 0xff;
-        workspace.frames[workspace.selectedFrame].data[0][row] = b0;
-        workspace.frames[workspace.selectedFrame].data[1][row] = b1;
-    }
+    
+    for (let row = 0; row < options.spriteHeight; row++)
+      {
+      for (let col = 0; col < options.spriteWidth - 1; col++)
+        workspace.frames[workspace.selectedFrame].data[col][row] = workspace.frames[workspace.selectedFrame].data[col + 1][row];
+      workspace.frames[workspace.selectedFrame].data[options.spriteWidth - 1][row] = 0;  //clear last column 
+      }
     drawEditor();
     storeWorkspace();
     return true;
@@ -1203,12 +1187,14 @@ const moveFrameLeft = () => {
 
 const moveFrameRight = () => {
     if (player) { return false };
-    for (let row=0;row<options.spriteHeight;row++){
-        const b0 = (workspace.frames[workspace.selectedFrame].data[0][row] >> 1) & 0xff;
-        const b1 = (workspace.frames[workspace.selectedFrame].data[1][row] >> 1) & 0xff;
-        workspace.frames[workspace.selectedFrame].data[0][row] = b0;
-        workspace.frames[workspace.selectedFrame].data[1][row] = b1;
-    }
+    
+    for (let row = 0; row < options.spriteHeight; row++)
+      {
+      for (let col = options.spriteWidth - 1; col > 0; col--)
+        workspace.frames[workspace.selectedFrame].data[col][row] = workspace.frames[workspace.selectedFrame].data[col - 1][row];
+      workspace.frames[workspace.selectedFrame].data[0][row] = 0;  //clear first column 
+      }
+    
     drawEditor();
     storeWorkspace();
     return true;
@@ -1216,12 +1202,14 @@ const moveFrameRight = () => {
 
 const moveFrameUp = () => {
     if (player) { return false };
-    workspace.frames[workspace.selectedFrame].data[0].length = options.spriteHeight;
-    workspace.frames[workspace.selectedFrame].data[1].length = options.spriteHeight;
-    const b0 = workspace.frames[workspace.selectedFrame].data[0].shift();
-    const b1 = workspace.frames[workspace.selectedFrame].data[1].shift();
-    workspace.frames[workspace.selectedFrame].data[0].push(options.wrapEditor?b0:0);
-    workspace.frames[workspace.selectedFrame].data[1].push(options.wrapEditor?b1:0);
+   
+    for (let col = 0; col < options.spriteWidth; col++)
+    {
+      for (let row = 0; row < options.spriteHeight - 1; row++)
+        workspace.frames[workspace.selectedFrame].data[col][row] = workspace.frames[workspace.selectedFrame].data[col][row + 1];
+      workspace.frames[workspace.selectedFrame].data[col][options.spriteHeight - 1] = 0;  //clear last row 
+    }
+   
     drawEditor();
     storeWorkspace();
     return true;
@@ -1229,12 +1217,14 @@ const moveFrameUp = () => {
 
 const moveFrameDown = () => {
     if (player) { return false };
-    workspace.frames[workspace.selectedFrame].data[0].length = options.spriteHeight;
-    workspace.frames[workspace.selectedFrame].data[1].length = options.spriteHeight;
-    const b0 = workspace.frames[workspace.selectedFrame].data[0].pop();
-    const b1 = workspace.frames[workspace.selectedFrame].data[1].pop();
-    workspace.frames[workspace.selectedFrame].data[0].unshift(options.wrapEditor?b0:0);
-    workspace.frames[workspace.selectedFrame].data[1].unshift(options.wrapEditor?b1:0);
+    
+    for (let col = 0; col < options.spriteWidth; col++)
+    {
+      for (let row = options.spriteHeight - 1; row > 0; row--)  
+        workspace.frames[workspace.selectedFrame].data[col][row] = workspace.frames[workspace.selectedFrame].data[col][row - 1];
+      workspace.frames[workspace.selectedFrame].data[col][0] = 0;  //clear first row 
+    }
+    
     drawEditor();
     storeWorkspace();
     return true;
