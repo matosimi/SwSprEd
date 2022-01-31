@@ -238,9 +238,6 @@ const getByteRGB = (cval) => {
 }
 
 const getColorOn = (frame,col,row) => {
-    //do autoextend of columns when accessed
-    if (workspace.frames[frame].data[col] == undefined)
-      workspace.frames[frame].data[col] = [];
     const c0 = workspace.frames[frame].data[col][row];
     return c0;
 }
@@ -657,6 +654,7 @@ const updateOptions = () => {
     })
     _.assignIn(options, newopts);
     storeOptions();
+    validateFrames();
 }
 
 const saveOptions = () => {
@@ -1092,6 +1090,20 @@ const delFrame = () => {
 
 // ************************************ FRAME OPERATION
 
+//perform frame content defaulting (on sprite size extension)
+const validateFrames = () => {
+    _.each(workspace.frames, (frame,f) => {
+    //do autoextend of columns when accessed
+    for (let col = 0; col < options.spriteWidth; col++)
+    {
+      if (frame.data[col] == undefined)
+        frame.data[col] = [];
+      for (let row = 0; row < options.spriteHeight; row++)
+        frame.data[col][row] ??= 0;
+    }
+    });
+}
+
 const copyColors = () => {
     if (player || options.commonPalette) { return false };
     workspace.clipBoard.colors = _.cloneDeep(workspace.frames[workspace.selectedFrame].colors);
@@ -1429,6 +1441,7 @@ $(document).ready(function () {
 
 
 });
+
 
 
 
