@@ -5,16 +5,19 @@ const exportTemplates = [
     {
         name:'MADS Assembler',
         block: {
-            prefix: '; SPRITE DATA\n; frames, height, gap\n  dta #frames#,#height#,#gap#\n\n', postfix: ''
+            prefix: '; SPRITE DATA\n; frames, height, byteColumns\n  dta #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
-            prefix: '; SPRITE COLORS #s#\n', postfix: ''
+            prefix: '; COLORS (background, color0, color1, color2)\n', postfix: ''
         },
         sprite: {
             prefix: '\n; SPRITE #s#\n', postfix: ''
         },
         frame: {
-            prefix: '; FRAME #f#\n', postfix: ''
+            prefix: '\n; FRAME #f#\n', postfix: ''
+        },
+        column: {
+            prefix: '; COLUMN #col#\n', postfix: ''
         },
         line: {
             numbers: false,
@@ -24,13 +27,13 @@ const exportTemplates = [
             separator: ', ',
             binPrefix: '%', hexPrefix: '$', addrPrefix: 'a(', addrPostfix: ')'
         }
-    },    
+     } /*,    
 
 
     {
         name:'Other Assemblers',
         block: {
-            prefix: '; SPRITE DATA\n; frames, height, gap\n  .BYTE #frames#,#height#,#gap#\n\n', postfix: ''
+            prefix: '; SPRITE DATA\n; frames, height, width\n  .BYTE #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
             prefix: '; SPRITE COLORS #s#\n', postfix: ''
@@ -54,7 +57,7 @@ const exportTemplates = [
     {
         name:'MAC/65',
         block: {
-            prefix: '#-1# .BYTE #frames#,#height#,#gap# ;frames,height,gap\n', postfix: ''
+            prefix: '#-1# .BYTE #frames#,#height#,#width# ;frames,height,width\n', postfix: ''
         },
         colors: {
             prefix: '', postfix: ''
@@ -77,7 +80,7 @@ const exportTemplates = [
     {
         name:'Mad-Pascal',
         block: {
-            prefix: 'var\n  spriteFrames: byte = #frames#;\n  spriteGap: byte = #gap#;\n  spriteHeight: byte = #height#;\n\n', postfix: ''
+            prefix: 'var\n  spriteFrames: byte = #frames#;\n  spritewidth: byte = #width#;\n  spriteHeight: byte = #height#;\n\n', postfix: ''
         },
         colors: {
             prefix: "  colors#s#: array [0..#maxframes#] of byte = (\n", postfix: "  );\n"
@@ -99,7 +102,7 @@ const exportTemplates = [
     {
         name:'Action!',
         block: {
-            prefix: 'BYTE FRAMES=#frames#,\n     GAP=#gap#,\n     HEIGHT=#height#;\n\n', postfix: ''
+            prefix: 'BYTE FRAMES=#frames#,\n     width=#width#,\n     HEIGHT=#height#;\n\n', postfix: ''
         },
         colors: {
             prefix: "BYTE ARRAY COLORS#s# =[\n", postfix: "]\n"
@@ -121,7 +124,7 @@ const exportTemplates = [
     {
         name:'CC65',
         block: {
-            prefix: 'unsigned char frames = #frames#;\nunsigned char gap = #gap#,\nunsigned char height = #height#;\n\n', postfix: ''
+            prefix: 'unsigned char frames = #frames#;\nunsigned char width = #width#,\nunsigned char height = #height#;\n\n', postfix: ''
         },
         colors: {
             prefix: "unsigned char frames#s#_#f#[#height#] = {\n", postfix: "};"
@@ -143,7 +146,7 @@ const exportTemplates = [
     {
         name:'FastBasic',
         block: {
-            prefix: 'frames = #frames#\ngap = #gap#\nheight = #height#\n\n', postfix: ''
+            prefix: 'frames = #frames#\nwidth = #width#\nheight = #height#\n\n', postfix: ''
         },
         colors: {
             prefix: "data colors#s#()", postfix: ""
@@ -166,7 +169,7 @@ const exportTemplates = [
     {
         name:'BASIC',
         block: {
-            prefix: '#-2# FRAMES=#frames#:HEIGHT=#height#:GAP=#gap#\n#-1# REM *** SPRITE DATA ***\n', postfix: ''
+            prefix: '#-2# FRAMES=#frames#:HEIGHT=#height#:width=#width#\n#-1# REM *** SPRITE DATA ***\n', postfix: ''
         },
         colors: {
             prefix: '', postfix: ''
@@ -190,7 +193,7 @@ const exportTemplates = [
     {
         name:'Raw CSV sheet',
         block: {
-            prefix: '#frames#,#height#,#gap#\n', postfix: ''
+            prefix: '#frames#,#height#,#width#\n', postfix: ''
         },
         colors: {
             prefix: '', postfix: ''
@@ -213,7 +216,7 @@ const exportTemplates = [
     {
         name:'Raw CSV one liner',
         block: {
-            prefix: '#frames#,#height#,#gap#,', postfix: ''
+            prefix: '#frames#,#height#,#width#,', postfix: ''
         },
         colors: {
             prefix: '', postfix: ''
@@ -231,8 +234,9 @@ const exportTemplates = [
             separator: ',',
             hexPrefix: '$'
         }
-    },
+    },*/
 
 
     
 ]
+

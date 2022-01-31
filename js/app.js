@@ -724,6 +724,7 @@ const parseTemplate = (template) => {
     let lineBody = '';
     let tframe = 0;
     let tsprite = 0;
+    let tcolumn = 0;
     let lines = '';
 
     const formatByte = b => {
@@ -749,7 +750,7 @@ const parseTemplate = (template) => {
     const parseTemplateVars = (template) => {
         return template
         .replace(/#height#/g, formatByte(options.spriteHeight))
-        .replace(/#width#/g, formatByte(options.spriteWidth))
+        .replace(/#width#/g, formatByte(options.spriteWidth >>> 2))
         .replace(/#frames#/g, formatByte(workspace.frames.length))
         .replace(/#maxheight#/g, formatByte(options.spriteHeight-1))
         .replace(/#maxframes#/g, formatByte(workspace.frames.length-1))
@@ -761,7 +762,7 @@ const parseTemplate = (template) => {
 
     const getBlock = (block, blockTemp) => {
         let blockLines = `${blockTemp.prefix}${block}${blockTemp.postfix}`;
-        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tsprite);
+        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tsprite).replace(/#col#/g, tcolumn);
         //lineCount+= blockLines.split(/\r\n|\r|\n/).length + 1;
         return blockLines
     }
@@ -795,10 +796,10 @@ const parseTemplate = (template) => {
         stepByte(last);
     }
 
-    const pushSpriteColors = s => {
+    const pushSpriteColors = () => {
         lines = '';
-        tsprite = s;
-        pushArray(_.map(workspace.frames,f=>f.colors[s]));
+        pushByte(workspace.backgroundColor);
+        pushArray(workspace.frames[0].colors);
         pushBlock(lines, template.colors);
     }
 
@@ -809,23 +810,38 @@ const parseTemplate = (template) => {
         }
     }
 
-    const pushSpriteData = s => {
-        let sprite = '';
-        tsprite = s;
+    const combinePixelsToBytes = (col0,col1,col2,col3) => {
+      var output = [];
+      for (let i = 0; i < col0.length; i++)
+        output[i] = 64*col0[i] + 16*col1[i] + 4*col2[i] + col3[i];
+      return output;
+    }
+        
+    const pushSpriteData = () => {
+        
         _.each(workspace.frames, (frame,f) => {
-            lines = '';
-            tframe = f;
-            frame.data[s].length = options.spriteHeight;
-            pushArray(frame.data[s])
-            sprite += getBlock(lines, template.frame);
+            let sprite = '';
+            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
+            {
+              lines = '';
+              tframe = f;
+              tcolumn = byteCol;
+              //pushBlock(frame, template.frame)
+              frame.data[byteCol].length = options.spriteHeight;
+              pushArray(combinePixelsToBytes(frame.data[byteCol*4],
+                                             frame.data[byteCol*4 + 1],
+                                             frame.data[byteCol*4 + 2],
+                                             frame.data[byteCol*4 + 3]
+                                             ));
+              sprite += getBlock(lines, template.column);
+            }
+            pushBlock(sprite, template.frame);
         });   
-        pushBlock(sprite, template.sprite);
+        
     }
 
-    pushSpriteColors(0);
-    pushSpriteColors(1);
-    pushSpriteData(0);
-    pushSpriteData(1);
+    pushSpriteColors();
+    pushSpriteData();
 
     return parseTemplateVars(`${template.block.prefix}${templateLines}${template.block.postfix}`);
 }
