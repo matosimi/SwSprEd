@@ -19,7 +19,7 @@
   <div id='main'>
     <div id='editor_box'></div>
     <div id='color_box'>
-      <div class='colorbox' id='color0'>COLOR 0</div>
+      <div class='colorbox' id='color0'>BACKGROUND</div>
       <div class='colorbox' id='color1'>COLOR 1</div>
       <div class='colorbox' id='color2'>COLOR 2</div>
       <div class='colorbox' id='color3'>COLOR 3</div>
@@ -40,16 +40,26 @@
         <div class='dialog_block'>
             <h3>Keyboard Shortcuts:</h3>
             <fieldset>
-            <p><b>0</b> : select color 0</p>
+            <p><b>ctrl + o</b> : Open new sprite file</p>
+            <p><b>ctrl + s</b> : Save sprite to file</p>
+            <p><b>0</b> : select color 0 (background)</p>
             <p><b>1</b> : select color 1</p>
             <p><b>2</b> : select color 2</p>
             <p><b>3</b> : select color 3</p>
-            <p><b>space</b> : play/stop animation</p>
-            <p><b>left/right arrow</b> : navigate frames</p>
-            <p><b>home/end</b> : jump to first/last frame</p>
+
+            <p><b>space</b> : Play/Stop animation</p>
+            <p><b>left/right arrow</b> : Navigation within the frames</p>
+            <p><b>home/end</b> : Jump to first/last frame</p>
+            <p><b>ctrl + c</b> : Copy frame contents</p>
+            <p><b>ctrl + v</b> : Paste frame contents</p>
+            <p><b>Insert</b> : Add new empty frame</p>
+            <p><b>Delete</b> : Delete current frame</p>
             <p><b>[</b> : Copy sprite colors</p>
             <p><b>]</b> : Paste sprite colors</p>
-            <p><b>esc</b> : close all windows</p>
+            <p><b>ctrl + z</b> : Undo last operation</p>
+            <p><b>ctrl + y</b> : Revert undo</p>
+            <p><b>ctrl + e</b> : Toggle export popup</p>
+            <p><b>esc</b> : Close all popup windows</p>
           </fieldset>
         </div>
       </div>
@@ -122,12 +132,18 @@
             </fieldset>
 
             <fieldset>
-              <label class='dialog_label'>Pixel Aspect ratio:</label>
-              <select id='opt_aspect_i' class='dialog_text_input'>
-                <option value='1'>1:1</option>
-                <option value='2'>2:1</option>
+              <label class='dialog_label'>Sprite line resolution:</label>
+              <select id='opt_lineResolution_i' class='dialog_text_input'>
+                <option value='1'>1</option>
+                <option value='2'>2</option>
               </select>
             </fieldset>
+
+            <fieldset>
+              <label class='dialog_label checkbox_label'>
+                <input type='checkbox' id='opt_squarePixel_b'/>Square Pixel</label>
+            </fieldset>
+
 
             <fieldset>
               <label class='dialog_label'>Colour palette:</label>
@@ -153,7 +169,7 @@
             </fieldset>
 
             <fieldset>
-              <label class='dialog_label'>Animaton Delay (frames):</label>
+              <label class='dialog_label'>Animaton Delay [frames]:</label>
               <input type='text' id='opt_animationSpeed_i' class='dialog_text_input input_narrow'>
             </fieldset>
 
@@ -180,6 +196,7 @@
               <select id='opt_bytesExport_s' class='dialog_text_input'>
                   <option value='HEX'>HEX</option>
                   <option value='DEC'>DEC</option>
+                  <option value='BIN'>BIN</option>
               </select>
             </fieldset>
 
@@ -204,9 +221,9 @@
       </div>
   </div>
 
-  <script src='js/exportTemplates.js?v=07121' type='text/javascript'></script>
-  <script src='js/gui.js?v=0712' type='text/javascript'></script>
-  <script src='js/app.js?v=0712' type='text/javascript'></script>
+  <script src='js/exportTemplates.js?v=081' type='text/javascript'></script>
+  <script src='js/gui.js?v=081' type='text/javascript'></script>
+  <script src='js/app.js?v=081' type='text/javascript'></script>
 </body>
 
 </html>

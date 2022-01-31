@@ -4,9 +4,10 @@ const aplHeader = [0x9a,0xf8,0x39,0x21];
 const apl2Header = [0x45,0x64,0x52,0x32];
 const sprHeader = [0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '0.7.12',
-    storageName: 'SwSprEdStore0712',
-    aspect: 2,
+    version: '0.8.1',
+    storageName: 'SwSprEdStore081',
+    undoLevels: 128,
+    lineResolution: 2,
     spriteHeight: 16,
     spriteWidth: 4,
     showGrid: 1,
@@ -20,7 +21,8 @@ const defaultOptions = {
     lastTemplate: 0,
     startingLine: 10000,
     lineStep: 10,
-    ORDrawsOutside: 0 
+    ORDrawsOutside: 0, 
+    squarePixel: 1
 }
 let options = {};
 const dontSave = ['version', 'storageName'];
@@ -28,6 +30,10 @@ const dontSave = ['version', 'storageName'];
 let editor = null;
 let player = 0;
 let playerInterval = null;
+
+let undos = [];
+let redos = [];
+let beforeDrawingState = null;
 
 const defaultWorkspace = {
     selectedColor: 1,
@@ -65,13 +71,24 @@ Number.prototype.clamp = function (min, max) {
 }
 
 function decimalToHex(d, padding) {
-    var hex = Number(d).toString(16);
+    let hex = Number(d).toString(16);
     padding = typeof (padding) === "undefined" || padding === null ? padding = 2 : padding;
     while (hex.length < padding) {
         hex = "0" + hex;
     }
     return hex;
 }
+
+function decimalToBin(d, padding) {
+    let bin = Number(d).toString(2);
+    padding = typeof (padding) === "undefined" || padding === null ? padding = 8 : padding;
+    bin = bin.substring(-8);
+    while (bin.length < padding) {
+        bin = "0" + bin;
+    }
+    return bin;
+}
+
 
 const userIntParse = (udata) => {
     if (_.isNull(udata)) return null;
@@ -99,19 +116,64 @@ const userIntParse = (udata) => {
 // **** empty frame filled by default values
 const getEmptyFrame = () => {
     const frame = {
-        data: [[],[],[],[],[],[]],
+        data: [],
         colors: [0x28, 0xca, 0x94]
     }
-		for (let r=0;r<options.spriteHeight;r++) {
-			for (let c=0;c<options.spriteWidth / 4;c++)
+    // init the matrix
+    for (let c = 0; c < options.spriteWidth; c++)
+      frame.data[c] = [];
+      
+    // crear the values
+    for (let r=0;r<options.spriteHeight;r++) {
+      for (let c=0;c<options.spriteWidth;c++)
         frame.data[c][r] = 0;
     }
-		/*
-    for (let r=0;r<options.spriteHeight;r++) {
-        frame.data[0][r] = 0;
-        frame.data[1][r] = 0;
-    }*/
     return frame;
+}
+
+// *********************************** UNDO
+
+const pushUndo = (name, undoData) => {
+    while (undos.length >= options.undoLevels) {
+        undos.shift();
+    }
+    undos.push({ name, data: undoData });
+    _.remove(redos);
+    storeUndos();
+}
+
+const saveUndo = (name, modifier) => {
+    return () => {
+        const undoData = _.cloneDeep(workspace);
+        const result = modifier?modifier():true;
+        if (result) {
+            pushUndo(name, undoData);
+        }
+    }
+}
+
+const undo = () => {
+    if (undos.length > 0) {
+        const undo = undos.pop();
+        const redo = { name: undo.name, data: _.cloneDeep(workspace) };
+        redos.push(redo);
+        workspace = _.cloneDeep(undo.data);
+        storeWorkspace();
+        storeUndos();
+        updateScreen();
+    }
+}
+
+const redo = () => {
+    if (redos.length > 0) {
+        const redo = redos.pop();
+        const undo = { name: redo.name, data: _.cloneDeep(workspace) };
+        undos.push(undo);
+        workspace = _.cloneDeep(redo.data);
+        storeWorkspace();
+        storeUndos();
+        updateScreen();
+    }
 }
 
 // *********************************** COLOR OPERATIONS
@@ -177,23 +239,12 @@ const getByteRGB = (cval) => {
     return rgb;
 }
 
-const getMask = (col) => {
-		const rotRightCount = (col % 4) << 1;
-		return 0b11000000 >>> rotRightCount;
-}
-
 const getColorOn = (frame,col,row) => {
-		const byteCol = Math.floor(col / 4);
-		const rotToBit01Count = (3 - (col % 4)) << 1;
-		const b0 = workspace.frames[frame].data[byteCol][row];
-    //const b0 = workspace.frames[frame].data[0][row];
-    //const b1 = workspace.frames[frame].data[1][row];
-    const m0 = getMask(col);
-		//const [m0,m1] = getMasks(col);
-    //const c0 = (b0 & m0)?1:0;
-    //const c1 = (b1 & m1)?2:0;
-    const c0 = (b0 & m0) >>> rotToBit01Count;
-		return c0;
+    //do autoextend of columns when accessed
+    if (workspace.frames[frame].data[col] == undefined)
+      workspace.frames[frame].data[col] = [];
+    const c0 = workspace.frames[frame].data[col][row];
+    return c0;
 }
 
 const getRGBOn = (frame,col,row) => {
@@ -201,42 +252,10 @@ const getRGBOn = (frame,col,row) => {
 }
 
 const setColorOn = (col,row,color) => {
-        let c = getColorOn(workspace.selectedFrame,col,row);
-        const byteCol = Math.floor(col / 4);
-				const rotCount = (col % 4) << 1;
-				const m0 = 0b11000000 >>> rotCount;
         const currentFrame = workspace.frames[workspace.selectedFrame];
-        const clearPixel = () => {
-            currentFrame.data[byteCol][row] &= (~m0 & 0xff)     
-        }
-        if (color == 0) {
-            clearPixel();
-          //  c = 0;
-        }
-				else
-				{
-						clearPixel();
-						currentFrame.data[byteCol][row] |= (color << ((3 - (col % 4)) << 1));
-				}
-        /*if (m0 && color == 1) {
-            clearPixel();
-            currentFrame.data[0][row] |= m0
-            c = 1;
-        }
-        if (m1 && color == 2) {
-            clearPixel();
-            currentFrame.data[1][row] |= m1
-            c = 2;
-        }
-        if (color == 3) {
-            if (options.ORDrawsOutside || (m0 && m1)) {
-                clearPixel();
-                currentFrame.data[0][row] |= m0
-                currentFrame.data[1][row] |= m1
-                c = (m0?1:0) | (m1?2:0);
-            }
-        }*/
+        currentFrame.data[col][row] = color;
         drawBlock(col,row,getColorRGB(workspace.selectedFrame,color));
+        
 }
 
 const setNewColor = (c, cval) => {
@@ -251,7 +270,7 @@ const setNewColor = (c, cval) => {
         case 2:
             workspace.frames[frame].colors[1] = cval;
             break;
-				case 3:
+        case 3:
             workspace.frames[frame].colors[2] = cval;
             break;
     }
@@ -362,6 +381,8 @@ const clickRightOnCanvas = (event) => {
 }
 
 const drawingEnded = () => {
+    pushUndo('drawing', beforeDrawingState);
+    beforeDrawingState = null;
     drawEditor();
     storeWorkspace();
 }
@@ -373,11 +394,14 @@ const onMouseOut = (e) => {
     }
 }
 
+const getWidthMultiplier = () => options.squarePixel?1:1.2;
+
+
 const newCanvas = () => {
     editorWindow.columns = options.spriteWidth;
-    editorWindow.cwidth = options.cellSize;
+    editorWindow.cwidth = getWidthMultiplier() * options.cellSize;
     editorWindow.cxoffset = editorWindow.cwidth + options.showGrid;
-    editorWindow.cheight = Math.floor(options.cellSize / options.aspect);
+    editorWindow.cheight = Math.floor(options.cellSize / options.lineResolution);
     editorWindow.cyoffset = editorWindow.cheight + options.showGrid;
     editorWindow.swidth =  editorWindow.columns * editorWindow.cxoffset - options.showGrid;
     editorWindow.sheight = options.spriteHeight * editorWindow.cyoffset - options.showGrid;
@@ -412,19 +436,19 @@ const getFrameImage = (frame, scalex, scaley) => {
         for (let col=0;col<options.spriteWidth;col++) {
             const crgb = getRGBOn(frame, col, row);
             ctx.fillStyle = crgb;
-            ctx.lineWidth = 0;
-            ctx.fillRect(col*scalex,row*scaley,scalex,scaley);
+            ctx.lineWidth = 2;
+            ctx.fillRect(Math.ceil(col*scalex),row*scaley,Math.ceil(scalex),Math.ceil(scaley));
         }
     }
     return cnv
 }
 
 const clearSprites = () => {
-    sprite.data[0] = [];
-    sprite.data[1] = [];
-    for (let i=0; i<options.spriteHeight; i++) {
-        sprite.data[0][i] = 0; 
-        sprite.data[1][i] = 0; 
+    for (let col = 0; col < options.spriteWidth; col++)
+    {
+      sprite.data[col] = [];
+      for (let i=0; i<options.spriteHeight; i++)
+          sprite.data[col][i] = 0; 
     }
 }
 
@@ -445,17 +469,20 @@ const drawEditor = () => {
         drawGrid();
     }
     $("#framepreview").empty();
-    $("#framepreview").append(getFrameImage(workspace.selectedFrame,2,2/options.aspect));
-    $("#framepreview").append(getFrameImage(workspace.selectedFrame,4,4/options.aspect));
-    $("#framepreview").append(getFrameImage(workspace.selectedFrame,8,8/options.aspect)); //.addClass('clear_left'));
+    $("#framepreview").append(getFrameImage(workspace.selectedFrame,3,3/options.lineResolution));
+    $("#framepreview").append(getFrameImage(workspace.selectedFrame,6,6/options.lineResolution));
+    $("#framepreview").append(getFrameImage(workspace.selectedFrame,12,12/options.lineResolution));
     $(`#fbox_${workspace.selectedFrame}`).children().last().remove();
-    $(`#fbox_${workspace.selectedFrame}`).append(getFrameImage(workspace.selectedFrame,4,4/options.aspect));
+    $(`#fbox_${workspace.selectedFrame}`).append(getFrameImage(workspace.selectedFrame,4,4/options.lineResolution));
 }
 
 const drawTimeline = () => {
     $('#framelist').empty();
+    if (workspace.selectedFrame >= workspace.frames) {
+        workspace.selectedFrame = workspace.frames-1;
+    }
     _.each(workspace.frames, (frame,f) => {
-        const cnv = getFrameImage(f,4,4/options.aspect)
+        const cnv = getFrameImage(f,4,4/options.lineResolution)
         const framebox = $("<div/>")
         .addClass('framebox')
         .attr('id',`fbox_${f}`)
@@ -474,7 +501,7 @@ const drawTimeline = () => {
 
 const updateScreen = () => {
     drawTimeline();
-    drawingEnded();
+    drawEditor();
     updateColors();
 }
 
@@ -500,7 +527,7 @@ const drawGrid = () => {
         drawGridLine(0,y,editorWindow.swidth,y);
     }
     for (let col=1;col<editorWindow.columns;col++) {
-        const x = (editorWindow.cxoffset) * col - options.showGrid;
+        const x = (editorWindow.cxoffset * col) - options.showGrid;
         drawGridLine(x,0,x,editorWindow.sheight);
     }
 }
@@ -653,6 +680,26 @@ const storeWorkspace = () => {
      localStorage.setItem(`${defaultOptions.storageName}_WS`, JSON.stringify(workspace));
 }
 
+const storeUndos = () => {
+    localStorage.setItem(`${defaultOptions.storageName}_UNDO`, JSON.stringify(undos));
+    localStorage.setItem(`${defaultOptions.storageName}_REDO`, JSON.stringify(redos));
+}
+
+const loadUndos = () => {
+    undos = [];
+    redos = [];
+    if (!localStorage.getItem(`${defaultOptions.storageName}_UNDO`)) {
+        storeUndos();
+    } else {
+        try {
+            undos = JSON.parse(localStorage.getItem(`${defaultOptions.storageName}_UNDO`));
+            redos = JSON.parse(localStorage.getItem(`${defaultOptions.storageName}_REDO`));
+        } catch (e) {
+            console.log(e);
+        }
+    }
+}
+
 const loadWorkspace = () => {
      if (!localStorage.getItem(`${defaultOptions.storageName}_WS`)) {
          workspace = _.assignIn({}, _.clone(defaultWorkspace));
@@ -682,18 +729,23 @@ const parseTemplate = (template) => {
     let lines = '';
 
     const formatByte = b => {
-        let hexFormat = options.bytesExport == 'HEX';
+        let optFormat = options.bytesExport;
         if (template.byte.forceNumeric=='DEC') {
-            hexFormat = false;
+            optFormat = 'DEC';
         }
         if (template.byte.forceNumeric=='HEX') {
-            hexFormat = true;
+            optFormat = 'HEX';
         }
-        if (hexFormat) {
-            return `${template.byte.hexPrefix}${decimalToHex(userIntParse(b))}`;
-        } else {
-            return b;
+        if (template.byte.forceNumeric=='BIN') {
+            optFormat = 'BIN';
         }
+        if (optFormat == 'HEX') {
+            return `${template.byte.hexPrefix?template.byte.hexPrefix:''}${decimalToHex(userIntParse(b))}`;
+        } 
+        if (optFormat == 'BIN') {
+            return `${template.byte.binPrefix?template.byte.binPrefix:''}${decimalToBin(userIntParse(b))}`;
+        } 
+        return b;
     }
 
     const parseTemplateVars = (template) => {
@@ -786,7 +838,7 @@ const saveFile = () => {
     let listByte = 0;
     binList.push(sprHeader);
     binList.push(workspace.selectedFrame,workspace.selectedColor,workspace.backgroundColor);
-    binList.push(options.animationSpeed,options.palette=='PAL'?0:1,options.aspect);
+    binList.push(options.animationSpeed,options.palette=='PAL'?0:1,options.lineResolution);
     binList.push([0,0,0,0,0,0]); // 6 unused bytes
     binList.push(workspace.frames.length,options.spriteHeight,options.spriteGap);
     binList.push(_.map(workspace.frames,f=>f.colors[0]));
@@ -879,7 +931,7 @@ const parseBinary = (binData) => {
         wrkspc.backgroundColor = binData[binPtr++];
         options.animationSpeed = binData[binPtr++];
         options.palette = (binData[binPtr++]==1)?'NTSC':'PAL';
-        options.aspect = binData[binPtr++];
+        options.lineResolution = binData[binPtr++];
         binPtr += 6; // unused bytes
         const aplFrames = binData[binPtr++];
         options.spriteHeight = binData[binPtr++];
@@ -934,6 +986,9 @@ const dropFile = function (file) {
                 refreshOptions();
                 updateOptions();
                 updateScreen();
+                undos = [];
+                redos = [];
+                storeUndos();
             }
             file.name = '';
         };
@@ -968,12 +1023,17 @@ const jumpToPrevFrame = () => {
 
 const deleteAll = () => {
     if (player) { return false };
-    if (confirm('Do you really want to delete and erase all frames?')) {
+    if (confirm('Do you really want to delete and erase all frames?  NO UNDO!')) {
         workspace.frames.length = 1;
         workspace.selectedFrame = 0;
         clearFrame();
-        updateScreen()
+        storeWorkspace();
+        _.remove(undos);
+        _.remove(redos);
+        storeUndos();
+        updateScreen();
     }
+    return true;
 }
 
 const clearFrame = () => {
@@ -982,11 +1042,13 @@ const clearFrame = () => {
         workspace.frames[workspace.selectedFrame].data[0][r] = 0;
         workspace.frames[workspace.selectedFrame].data[1][r] = 0;
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const startPlayer = () => {
-    if ((player == 0) && !playerInterval) {
+    if ((player == 0) && !playerInterval && (workspace.frames.length>1)) {
         player = 1;
         playerInterval = setInterval(jumpToNextFrame,options.animationSpeed*20);
         $("#timeline li").first().addClass('red');
@@ -1005,6 +1067,8 @@ const cloneFrame = () => {
     const newframe = _.cloneDeep(workspace.frames[workspace.selectedFrame]);
     workspace.frames.splice(workspace.selectedFrame,0,newframe);
     jumpToFrame(workspace.selectedFrame+1);
+    storeWorkspace();    
+    return true;
 }
 
 const animFrameLeft = () => {
@@ -1014,6 +1078,7 @@ const animFrameLeft = () => {
     workspace.frames.splice(workspace.selectedFrame,1);
     workspace.frames.splice(workspace.selectedFrame-1,0,newframe);
     jumpToFrame(workspace.selectedFrame-1);
+    storeWorkspace();    
 }
 
 const animFrameRight = () => {
@@ -1023,6 +1088,7 @@ const animFrameRight = () => {
     workspace.frames.splice(workspace.selectedFrame,1);
     workspace.frames.splice(workspace.selectedFrame+1,0,newframe);
     jumpToFrame(workspace.selectedFrame+1);
+    storeWorkspace();
 }
 
 const addFrame = () => {
@@ -1030,6 +1096,8 @@ const addFrame = () => {
     const newframe = getEmptyFrame();
     workspace.frames.splice(workspace.selectedFrame+1,0,newframe);
     jumpToFrame(workspace.selectedFrame+1);
+    storeWorkspace();
+    return true;
 }
 
 const delFrame = () => {
@@ -1041,6 +1109,8 @@ const delFrame = () => {
         }
         jumpToFrame(workspace.selectedFrame);
     }
+    storeWorkspace();
+    return true;
 }
 
 // ************************************ FRAME OPERATION
@@ -1055,7 +1125,9 @@ const pasteColors = () => {
     if (workspace.clipBoard.colors) {
         workspace.frames[workspace.selectedFrame].colors = _.cloneDeep(workspace.clipBoard.colors);
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const copyFrame = () => {
@@ -1068,10 +1140,12 @@ const pasteFrame = () => {
     if (workspace.clipBoard.frame) {
         workspace.frames[workspace.selectedFrame] = _.cloneDeep(workspace.clipBoard.frame);
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
-const flip8Bits = (b) => reversedBytes[b];
+const flip8Bits = b => reversedBytes[b];
 
 const flipHFrame = () => {
     if (player) { return false };
@@ -1089,8 +1163,10 @@ const flipHFrame = () => {
             workspace.frames[workspace.selectedFrame].data[0][row] = b0;
             workspace.frames[workspace.selectedFrame].data[1][row] = b1;
         }
-   }
-    drawingEnded();
+    }
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const flipVFrame = () => {
@@ -1107,7 +1183,9 @@ const flipVFrame = () => {
         last--;
         first++;
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const moveFrameLeft = () => {
@@ -1118,7 +1196,9 @@ const moveFrameLeft = () => {
         workspace.frames[workspace.selectedFrame].data[0][row] = b0;
         workspace.frames[workspace.selectedFrame].data[1][row] = b1;
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const moveFrameRight = () => {
@@ -1129,7 +1209,9 @@ const moveFrameRight = () => {
         workspace.frames[workspace.selectedFrame].data[0][row] = b0;
         workspace.frames[workspace.selectedFrame].data[1][row] = b1;
     }
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const moveFrameUp = () => {
@@ -1140,7 +1222,9 @@ const moveFrameUp = () => {
     const b1 = workspace.frames[workspace.selectedFrame].data[1].shift();
     workspace.frames[workspace.selectedFrame].data[0].push(options.wrapEditor?b0:0);
     workspace.frames[workspace.selectedFrame].data[1].push(options.wrapEditor?b1:0);
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const moveFrameDown = () => {
@@ -1151,7 +1235,9 @@ const moveFrameDown = () => {
     const b1 = workspace.frames[workspace.selectedFrame].data[1].pop();
     workspace.frames[workspace.selectedFrame].data[0].unshift(options.wrapEditor?b0:0);
     workspace.frames[workspace.selectedFrame].data[1].unshift(options.wrapEditor?b1:0);
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const heightDown = () => {
@@ -1160,7 +1246,9 @@ const heightDown = () => {
     const s1 = workspace.frames[workspace.selectedFrame].data[1]
     workspace.frames[workspace.selectedFrame].data[0] = _.filter(s0,(v,k)=>(k%2==0));
     workspace.frames[workspace.selectedFrame].data[1] = _.filter(s1,(v,k)=>(k%2==0));
-    drawingEnded();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 const heightUp = () => {
@@ -1169,13 +1257,22 @@ const heightUp = () => {
     const s1 = workspace.frames[workspace.selectedFrame].data[1]
     workspace.frames[workspace.selectedFrame].data[0] = _.flatMap(s0,v=>[v,v]);
     workspace.frames[workspace.selectedFrame].data[1] = _.flatMap(s1,v=>[v,v]);
-    drawingEnded();
-    drawTimeline();
+    drawEditor();
+    storeWorkspace();
+    return true;
 }
 
 // ************************************ KEY BINDINGS
 
-const keyPressed = e => {
+const keyPressed = e => {               // always working
+    switch (e.code) {
+        case 'KeyE':
+            if (e.ctrlKey) {
+                e.preventDefault();
+                toggleExport();
+            };
+        break;    
+    }
     if ($('.dialog:visible').length==0) { // editor only
         switch (e.code) {
             case 'Digit1':
@@ -1215,17 +1312,59 @@ const keyPressed = e => {
                 break;        
             case 'End':
                 workspace.selectedFrame = workspace.frames.length-1;
-                updateScreen()
+                updateScreen();
                 break;        
             case 'BracketLeft':
                 copyColors();
             break;              
             case 'BracketRight':
-                if (pasteColors()) {
-                    updateScreen()
+                if (saveUndo('paste colors', pasteColors)()) {
+                    updateScreen();
                 };
             break;              
-    
+            case 'Delete':
+                if (saveUndo('delete frame', delFrame)()) {
+                    updateScreen();
+                };
+            break;    
+            case 'Insert':
+                if (saveUndo('add frame', addFrame)()) {
+                    updateScreen();
+                };
+            break;                
+            case 'KeyZ':
+                if (e.ctrlKey) {
+                    undo()
+                };
+            break;         
+            case 'KeyY':
+                if (e.ctrlKey) {
+                    redo()
+                };
+            break;         
+            case 'KeyS':
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    saveFile();
+                };
+            break;         
+            case 'KeyO':
+                if (e.ctrlKey) {
+                    e.preventDefault();
+                    $("#fdialog0").trigger('click');
+                };
+            break;        
+   
+            case 'KeyC':
+                if (e.ctrlKey) {
+                    copyFrame();
+                }
+            break;                             
+            case 'KeyV':
+                if (e.ctrlKey) {
+                    saveUndo('paste frame', pasteFrame)();
+                }
+            break;                             
             default:
                 break;
         }
@@ -1257,9 +1396,13 @@ $(document).ready(function () {
     const app = gui(options, dropFile);
     refreshOptions();
     $('title').append(` v.${options.version}`);
+    
     app.addMenuFileOpen('Load', openFile, 'appmenu', 'Loads Display List binary file', '.spr,.apl');
     app.addMenuItem('Save', saveFile, 'appmenu', 'Saves Display List as a binary file');
     app.addMenuItem('Export', toggleExport, 'appmenu', 'Exports Display List to various formats');
+    app.addSeparator('appmenu');
+    app.addMenuItem('Undo', undo, 'appmenu', 'Undo');
+    app.addMenuItem('Redo', redo, 'appmenu', 'Redo');
     app.addSeparator('appmenu');
     app.addMenuItem('Options', toggleOptions, 'appmenu', 'Shows Options');
     app.addSeparator('appmenu');
@@ -1268,27 +1411,28 @@ $(document).ready(function () {
     const ver = $('<div/>').attr('id','ver').html(`SwSprEd v.${options.version} by MatoSimi`);
     $('#appmenu').append(ver);
 
-    app.addMenuItem('Clear', clearFrame, 'framemenu', 'Clears current frame');
+
+    app.addMenuItem('Clear', saveUndo('clear frame', clearFrame), 'framemenu', 'Clears current frame');
     app.addMenuItem('Copy', copyFrame, 'framemenu', 'Copies from current frame');
-    app.addMenuItem('Paste', pasteFrame, 'framemenu', 'Pastes into current frame');
+    app.addMenuItem('Paste', saveUndo('paste frame', pasteFrame), 'framemenu', 'Pastes into current frame');
     app.addSeparator('framemenu');
-    app.addMenuItem('Flip-H', flipHFrame, 'framemenu', 'Flips frame horizontally');
-    app.addMenuItem('Flip-V', flipVFrame, 'framemenu', 'Flips frame vertically');
+    app.addMenuItem('Flip-H', saveUndo('flip h', flipHFrame), 'framemenu', 'Flips frame horizontally');
+    app.addMenuItem('Flip-V', saveUndo('flip v', flipVFrame), 'framemenu', 'Flips frame vertically');
     app.addSeparator('framemenu');
-    app.addMenuItem('🡄', moveFrameLeft, 'framemenu', 'Moves frame contents left');
-    app.addMenuItem('🡆', moveFrameRight, 'framemenu', 'Moves frame contents right');
-    app.addMenuItem('🡅', moveFrameUp, 'framemenu', 'Moves frame contents up');
-    app.addMenuItem('🡇', moveFrameDown, 'framemenu', 'Moves frame contents down');
+    app.addMenuItem('🡄', saveUndo('move left', moveFrameLeft), 'framemenu', 'Moves frame contents left');
+    app.addMenuItem('🡆', saveUndo('move right', moveFrameRight), 'framemenu', 'Moves frame contents right');
+    app.addMenuItem('🡅', saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
+    app.addMenuItem('🡇', saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
     app.addSeparator('framemenu');
-    app.addMenuItem('≡+', heightUp, 'framemenu', 'Expand by doubling lines');
-    app.addMenuItem('≡−', heightDown, 'framemenu', 'Remove every second line');
+    app.addMenuItem('≡+', saveUndo('double lines', heightUp), 'framemenu', 'Expand by doubling lines');
+    app.addMenuItem('≡−', saveUndo('tighten', heightDown), 'framemenu', 'Remove every second line');
 
     app.addMenuItem('▶', startPlayer, 'timemenu', 'Starts Animation [Space]');
     app.addMenuItem('⏹︎', stopPlayer, 'timemenu', 'Stops Animation [Space]');
     app.addSeparator('timemenu');
-    app.addMenuItem('Add', addFrame, 'timemenu', 'Adds new empty frame');
-    app.addMenuItem('Clone', cloneFrame, 'timemenu', 'Adds copy of frame');
-    app.addMenuItem('Delete', delFrame, 'timemenu', 'Deletes current frame');
+    app.addMenuItem('Add', saveUndo('add frame', addFrame), 'timemenu', 'Adds new empty frame');
+    app.addMenuItem('Clone', saveUndo('clone frame', cloneFrame), 'timemenu', 'Adds copy of frame');
+    app.addMenuItem('Delete', saveUndo('delete frame', delFrame), 'timemenu', 'Deletes current frame');
     app.addSeparator('timemenu');
     app.addMenuItem('🡄🞑', animFrameLeft, 'timemenu', 'Moves current frame left');
     app.addMenuItem('🞑🡆', animFrameRight, 'timemenu', 'Moves current frame right');
@@ -1312,9 +1456,13 @@ $(document).ready(function () {
     $('html').on('dragover',e=>{e.preventDefault()});
 
     loadWorkspace();
+    loadUndos();
     newCanvas();
     updateScreen();
 
 
 });
+
+
+
 
