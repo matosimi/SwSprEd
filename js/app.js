@@ -1,8 +1,6 @@
 const GRID_COLOR = 'rgba(200,200,200,0.3)';
-const MAX_FILESIZE = 64 * 1024;
-const aplHeader = [0x9a,0xf8,0x39,0x21];
-const apl2Header = [0x45,0x64,0x52,0x32];
-const sprHeader = [0x53,0x70,0x72,0x21];
+const MAX_FILESIZE = 640 * 1024;
+const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
     version: '0.8.1',
     storageName: 'SwSprEdStore081',
@@ -833,18 +831,19 @@ const parseTemplate = (template) => {
 }
 
 const saveFile = () => {
-    const name = prompt('set filename of saved file:', 'mysprites.spr');
+    const name = prompt('set filename of saved file:', 'mysprites.swspr');
     let binList = [];
     let listByte = 0;
-    binList.push(sprHeader);
+    binList.push(swsprHeader);
     binList.push(workspace.selectedFrame,workspace.selectedColor,workspace.backgroundColor);
     binList.push(options.animationSpeed,options.palette=='PAL'?0:1,options.lineResolution);
     binList.push([0,0,0,0,0,0]); // 6 unused bytes
-    binList.push(workspace.frames.length,options.spriteHeight,options.spriteGap);
-    binList.push(_.map(workspace.frames,f=>f.colors[0]));
-    binList.push(_.map(workspace.frames,f=>f.colors[1]));
-    _.each(workspace.frames,f=>{f.data[0].length=options.spriteHeight;binList.push(f.data[0])});
-    _.each(workspace.frames,f=>{f.data[1].length=options.spriteHeight;binList.push(f.data[1])});
+    binList.push(workspace.frames.length,options.spriteHeight,options.spriteWidth);
+    binList.push(workspace.frames[0].colors);
+    
+    for (let col = 0; col < options.spriteWidth; col++)
+      _.each(workspace.frames,f=>{f.data[col].length=options.spriteHeight;binList.push(f.data[col])});
+    
     binList = _.flatMap(binList);
     var a = document.createElement('a');
     document.body.appendChild(a);
@@ -882,50 +881,12 @@ const parseBinary = (binData) => {
     const binSize = binData.length;
     let binPtr = 0;
     let id = 0;    
-
-    const parseAPL = fsize => {
-        fsize = fsize || 48;
-        const wrkspc = _.clone(defaultWorkspace);
-        wrkspc.frames = [];
-        binPtr = 4;
-        const aplFrames = binData[binPtr++];
-        options.spriteHeight = binData[binPtr++];
-        options.spriteGap = binData[binPtr++];
-        for(let f=0;f<17;f++) {
-            const frame = {
-                data: [[],[]],
-                colors: [binData[binPtr++]]
-            }
-            wrkspc.frames.push(frame);
-        }
-        for(let f=0;f<17;f++) {
-            wrkspc.frames[f].colors.push(binData[binPtr++]);
-        }
-        wrkspc.backgroundColor = binData[binPtr++];
-        for(let f=0;f<17;f++) {
-            wrkspc.frames[f].data[0] = Array.from(binData.subarray(binPtr,binPtr+fsize));
-            binPtr += fsize;
-        }
-        for(let f=0;f<17;f++) {
-            wrkspc.frames[f].data[1] = Array.from(binData.subarray(binPtr,binPtr+fsize));
-            binPtr += fsize;
-        }
-        wrkspc.selectedFrame = binData[binPtr++];
-        wrkspc.selectedColor = binData[binPtr++];
-        options.animationSpeed = binData[binPtr++];
-        options.palette = (binData[binPtr++]==1)?'NTSC':'PAL';
-        wrkspc.frames.length = aplFrames;
-        return wrkspc;      
-    }
-    
-    if (areEqual(aplHeader,binData.subarray(0,4))) {               // PARSE APL 
-        return parseAPL();
-        
-    } else if (areEqual(sprHeader,binData.subarray(0,4))) {            // PARSE SPR 
+       
+    if (areEqual(swsprHeader,binData.subarray(0,6))) {            // PARSE SWSPR 
 
         const wrkspc = _.clone(defaultWorkspace);
         wrkspc.frames = [];
-        binPtr = 4;
+        binPtr = 6;
         wrkspc.selectedFrame = binData[binPtr++];
         wrkspc.selectedColor = binData[binPtr++];
         wrkspc.backgroundColor = binData[binPtr++];
@@ -935,32 +896,32 @@ const parseBinary = (binData) => {
         binPtr += 6; // unused bytes
         const aplFrames = binData[binPtr++];
         options.spriteHeight = binData[binPtr++];
-        options.spriteGap = binData[binPtr++];
+        options.spriteWidth = binData[binPtr++];
 
+        const colors = Array.from(binData.subarray(binPtr,binPtr+=3));
+               
         for(let f=0;f<aplFrames;f++) {
             const frame = {
-                data: [[],[]],
-                colors: [binData[binPtr++]]
+                data: [],
+                colors: colors
             }
+
+            for (let col = 0;col < options.spriteWidth; col++)
+              frame.data[col] = [];
             wrkspc.frames.push(frame);
         }
-        for(let f=0;f<aplFrames;f++) {
-            wrkspc.frames[f].colors.push(binData[binPtr++]);
-        }
-        for(let f=0;f<aplFrames;f++) {
-            wrkspc.frames[f].data[0] = Array.from(binData.subarray(binPtr,binPtr+options.spriteHeight));
-            binPtr += options.spriteHeight;
-        }
-        for(let f=0;f<aplFrames;f++) {
-            wrkspc.frames[f].data[1] = Array.from(binData.subarray(binPtr,binPtr+options.spriteHeight));
-            binPtr += options.spriteHeight;
+        //for(let f=0;f<aplFrames;f++) {
+        //    wrkspc.frames[f].colors.push(binData[binPtr++]);
+        //}
+        for (let col = 0; col < options.spriteWidth; col++)
+        {
+          for(let f=0;f<aplFrames;f++) {
+              wrkspc.frames[f].data[col] = Array.from(binData.subarray(binPtr,binPtr+options.spriteHeight));
+              binPtr += options.spriteHeight;
+          }
         }
         wrkspc.frames.length = aplFrames;
         return wrkspc;
-
-    }  else if (areEqual(apl2Header,binData.subarray(0,4))) {    // PARSE APL+ (52 rows)
-        
-        return parseAPL(52);
 
     } else {
         parseError('unknown format!')
@@ -1038,10 +999,10 @@ const deleteAll = () => {
 
 const clearFrame = () => {
     if (player) { return false };
-    for (let r=0;r<options.spriteHeight;r++) {
-        workspace.frames[workspace.selectedFrame].data[0][r] = 0;
-        workspace.frames[workspace.selectedFrame].data[1][r] = 0;
-    }
+    for (let col = 0; col < options.spriteWidth; col++)
+    for (let row = 0; row < options.spriteHeight; row++) 
+        workspace.frames[workspace.selectedFrame].data[col][row] = 0;
+    
     drawEditor();
     storeWorkspace();
     return true;
@@ -1230,6 +1191,7 @@ const moveFrameDown = () => {
     return true;
 }
 
+/*
 const heightDown = () => {
     if (player) { return false };
     const s0 = workspace.frames[workspace.selectedFrame].data[0]
@@ -1251,6 +1213,7 @@ const heightUp = () => {
     storeWorkspace();
     return true;
 }
+*/
 
 // ************************************ KEY BINDINGS
 
@@ -1304,14 +1267,14 @@ const keyPressed = e => {               // always working
                 workspace.selectedFrame = workspace.frames.length-1;
                 updateScreen();
                 break;        
-            case 'BracketLeft':
+/*            case 'BracketLeft':
                 copyColors();
             break;              
             case 'BracketRight':
                 if (saveUndo('paste colors', pasteColors)()) {
                     updateScreen();
                 };
-            break;              
+            break;   */           
             case 'Delete':
                 if (saveUndo('delete frame', delFrame)()) {
                     updateScreen();
@@ -1387,7 +1350,7 @@ $(document).ready(function () {
     refreshOptions();
     $('title').append(` v.${options.version}`);
     
-    app.addMenuFileOpen('Load', openFile, 'appmenu', 'Loads Display List binary file', '.spr,.apl');
+    app.addMenuFileOpen('Load', openFile, 'appmenu', 'Loads Display List binary file', '.swspr');
     app.addMenuItem('Save', saveFile, 'appmenu', 'Saves Display List as a binary file');
     app.addMenuItem('Export', toggleExport, 'appmenu', 'Exports Display List to various formats');
     app.addSeparator('appmenu');
@@ -1414,9 +1377,7 @@ $(document).ready(function () {
     app.addMenuItem('🡅', saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
     app.addMenuItem('🡇', saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
     app.addSeparator('framemenu');
-    app.addMenuItem('≡+', saveUndo('double lines', heightUp), 'framemenu', 'Expand by doubling lines');
-    app.addMenuItem('≡−', saveUndo('tighten', heightDown), 'framemenu', 'Remove every second line');
-
+    
     app.addMenuItem('▶', startPlayer, 'timemenu', 'Starts Animation [Space]');
     app.addMenuItem('⏹︎', stopPlayer, 'timemenu', 'Stops Animation [Space]');
     app.addSeparator('timemenu');
