@@ -2,8 +2,8 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '0.8.1',
-    storageName: 'SwSprEdStore081',
+    version: '0.8.2',
+    storageName: 'SwSprEdStore082',
     undoLevels: 128,
     lineResolution: 2,
     spriteHeight: 16,
@@ -1160,6 +1160,19 @@ const flipVFrame = () => {
     return true;
 }
 
+const inverseFrame = () => {
+    if (player) { return false };
+    
+    for (let row = 0; row < options.spriteHeight; row++)
+      for (let col = 0; col < options.spriteWidth; col++)
+        workspace.frames[workspace.selectedFrame].data[col][row] ^= 0x3;
+				
+    drawEditor();
+    storeWorkspace();
+    return true;
+}
+
+
 const moveFrameLeft = () => {
     if (player) { return false };
     
@@ -1399,22 +1412,23 @@ $(document).ready(function () {
     app.addSeparator('framemenu');
     app.addMenuItem('Flip-H', saveUndo('flip h', flipHFrame), 'framemenu', 'Flips frame horizontally');
     app.addMenuItem('Flip-V', saveUndo('flip v', flipVFrame), 'framemenu', 'Flips frame vertically');
+		app.addMenuItem('Inverse', saveUndo('inverse', inverseFrame), 'framemenu', 'Inverses frame bytes (useful for masking)');
     app.addSeparator('framemenu');
-    app.addMenuItem('🡄', saveUndo('move left', moveFrameLeft), 'framemenu', 'Moves frame contents left');
-    app.addMenuItem('🡆', saveUndo('move right', moveFrameRight), 'framemenu', 'Moves frame contents right');
-    app.addMenuItem('🡅', saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
-    app.addMenuItem('🡇', saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
+    app.addMenuItem('&#129092;', saveUndo('move left', moveFrameLeft), 'framemenu', 'Moves frame contents left');
+    app.addMenuItem('&#129094;', saveUndo('move right', moveFrameRight), 'framemenu', 'Moves frame contents right');
+    app.addMenuItem('&#129093;', saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
+    app.addMenuItem('&#129095;', saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
     app.addSeparator('framemenu');
     
-    app.addMenuItem('▶', startPlayer, 'timemenu', 'Starts Animation [Space]');
-    app.addMenuItem('⏹︎', stopPlayer, 'timemenu', 'Stops Animation [Space]');
+    app.addMenuItem('&#9654;', startPlayer, 'timemenu', 'Starts Animation [Space]');
+    app.addMenuItem('&#9209;', stopPlayer, 'timemenu', 'Stops Animation [Space]');
     app.addSeparator('timemenu');
     app.addMenuItem('Add', saveUndo('add frame', addFrame), 'timemenu', 'Adds new empty frame');
     app.addMenuItem('Clone', saveUndo('clone frame', cloneFrame), 'timemenu', 'Adds copy of frame');
     app.addMenuItem('Delete', saveUndo('delete frame', delFrame), 'timemenu', 'Deletes current frame');
     app.addSeparator('timemenu');
-    app.addMenuItem('🡄🞑', animFrameLeft, 'timemenu', 'Moves current frame left');
-    app.addMenuItem('🞑🡆', animFrameRight, 'timemenu', 'Moves current frame right');
+    app.addMenuItem('&#129092;&#128913;', animFrameLeft, 'timemenu', 'Moves current frame left');
+    app.addMenuItem('&#128913;&#129094;', animFrameRight, 'timemenu', 'Moves current frame right');
     app.addSeparator('timemenu');
     app.addMenuItem('Delete All', deleteAll, 'timemenu', 'Clears and deletes all frames');
 

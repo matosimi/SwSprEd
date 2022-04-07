@@ -21,7 +21,7 @@ const exportTemplates = [
         },
         line: {
             numbers: false,
-            prefix: '  dta ', postfix: '\n'
+            prefix: '\tdta ', postfix: '\n'
         },
         byte: {
             separator: ', ',

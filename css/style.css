@@ -269,7 +269,7 @@ input:disabled {
   border-right-color:#444;
   border-top-color:#888;
   border-left-color: #888;
-  width: 132px;
+  width: 160px;
   height: 24px;
   margin-bottom: 4px;
   line-height: 24px;
@@ -277,8 +277,14 @@ input:disabled {
   font-weight: 900;
   text-indent: 1em;
   color:#000;
-  text-shadow: rgb(255, 255, 255, 0.5) 1px 1px 1px;
+  text-shadow: rgb(255, 255, 255, 1) 0px 0px 3px;
   cursor: pointer;
+}
+
+.bits {
+	position: absolute;
+	right: 30px;
+	top: 5px;
 }
 
 .picker {
@@ -301,7 +307,7 @@ input:disabled {
 
 .colorSelected {
   color:#fff;
-  text-shadow: rgb(0, 0, 0) 1px 1px 1px;
+  text-shadow: rgb(0, 0, 0) 0px 0px 3px;
   border-bottom-color:#888;
   border-right-color:#888;
   border-top-color:#444;
@@ -425,3 +431,4 @@ input:disabled {
   cursor: pointer;
   opacity: 0.7;
 }
+
