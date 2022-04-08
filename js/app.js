@@ -2,8 +2,8 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '0.8.2',
-    storageName: 'SwSprEdStore082',
+    version: '0.8.3',
+    storageName: 'SwSprEdStore083',
     undoLevels: 128,
     lineResolution: 2,
     spriteHeight: 16,
@@ -721,8 +721,9 @@ const parseTemplate = (template) => {
     let lineCount = 0;
     let lineBody = '';
     let tframe = 0;
-    let tsprite = 0;
+    let tshift = 0;
     let tcolumn = 0;
+		let lastColumn = 0;
     let lines = '';
 
     const formatByte = b => {
@@ -760,7 +761,7 @@ const parseTemplate = (template) => {
 
     const getBlock = (block, blockTemp) => {
         let blockLines = `${blockTemp.prefix}${block}${blockTemp.postfix}`;
-        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tsprite).replace(/#col#/g, tcolumn);
+        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tshift).replace(/#col#/g, tcolumn);
         //lineCount+= blockLines.split(/\r\n|\r|\n/).length + 1;
         return blockLines
     }
@@ -772,8 +773,16 @@ const parseTemplate = (template) => {
     const pushLine = (line, last) => {
         const num = (template.line.numbers) ? `${options.startingLine + options.lineStep * lineCount} `:'';
         lineCount++;
-        lines += `${num}${template.line.prefix}${line}${last?template.line.lastpostfix || template.line.postfix:template.line.postfix}`;
-        byteInRow = 0;
+				if (tcolumn == lastColumn)
+				{
+        	lines += `${num}${template.line2.prefix}${line}${last?template.line2.lastpostfix || template.line2.postfix:template.line2.postfix}`;
+        }
+				else
+				{
+					lines += `${num}${template.line.prefix}${line}${last?template.line.lastpostfix || template.line.postfix:template.line.postfix}`;
+					lastColumn = tcolumn;
+				}
+				byteInRow = 0;
         lineBody = '';
     }
 
@@ -816,25 +825,34 @@ const parseTemplate = (template) => {
     }
         
     const pushSpriteData = () => {
-        
-        _.each(workspace.frames, (frame,f) => {
-            let sprite = '';
-            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
-            {
-              lines = '';
-              tframe = f;
-              tcolumn = byteCol;
-              //pushBlock(frame, template.frame)
-              frame.data[byteCol].length = options.spriteHeight;
-              pushArray(combinePixelsToBytes(frame.data[byteCol*4],
-                                             frame.data[byteCol*4 + 1],
-                                             frame.data[byteCol*4 + 2],
-                                             frame.data[byteCol*4 + 3]
-                                             ));
-              sprite += getBlock(lines, template.column);
-            }
-            pushBlock(sprite, template.frame);
-        });   
+        let shifts = template.shifts;
+				lastColumn = -1;
+				if (shifts == undefined) shifts = 0;
+				for (let i = 0; i <= shifts; i++)
+				{
+					tshift = i;
+					if (template.shifts != undefined) 
+						pushBlock("", template.shift);
+	        _.each(workspace.frames, (frame,f) => {
+	            let sprite = '';
+	            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
+	            {
+	              lines = '';
+	              tframe = f;
+	              tcolumn = byteCol;
+	              //pushBlock(frame, template.frame)
+	              frame.data[byteCol].length = options.spriteHeight;
+								let ai = byteCol*4 - i;
+	              pushArray(combinePixelsToBytes(ai < 0 ? frame.data[options.spriteWidth - 1] : frame.data[ai],
+	                                             ai < -1 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 1],
+	                                             ai < -2 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 2],
+	                                             ai < -3 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 3]
+	                                             ));
+	              sprite += getBlock(lines, template.column);
+	            }
+	            pushBlock(sprite, template.frame);
+	        });
+				}   
         
     }
 

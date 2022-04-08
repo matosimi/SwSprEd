@@ -3,6 +3,38 @@
 
 const exportTemplates = [
     {
+        name:'MADS Assembler + 3 shifts right',
+        shifts: 3,
+				block: {
+            prefix: '; SPRITE DATA\n; frames, height, byteColumns\n  dta #frames#,#height#,#width#\n\n', postfix: ''
+        },
+        colors: {
+            prefix: '; COLORS (background, color0, color1, color2)\n', postfix: ''
+        },
+        shift: {
+            prefix: '\n; SHIFT #s#', postfix: ''
+        },
+        frame: {
+            prefix: '; FRAME #f#\n', postfix: ''
+        },
+        column: {
+            prefix: ''/*'; COLUMN #col#\n'*/, postfix: ''
+        },
+        line: {
+            numbers: false,
+            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
+        },
+				line2: {
+            numbers: false,
+            prefix: '\tdta ', postfix: '\n'
+        },
+        byte: {
+            separator: ', ',
+            binPrefix: '%', hexPrefix: '$', addrPrefix: 'a(', addrPostfix: ')'
+        }
+     },     
+
+    {
         name:'MADS Assembler',
         block: {
             prefix: '; SPRITE DATA\n; frames, height, byteColumns\n  dta #frames#,#height#,#width#\n\n', postfix: ''
@@ -10,16 +42,20 @@ const exportTemplates = [
         colors: {
             prefix: '; COLORS (background, color0, color1, color2)\n', postfix: ''
         },
-        sprite: {
-            prefix: '\n; SPRITE #s#\n', postfix: ''
+        shift: {
+            prefix: '\n; SHIFT #s#\n', postfix: ''
         },
         frame: {
-            prefix: '\n; FRAME #f#\n', postfix: ''
+            prefix: '; FRAME #f#\n', postfix: ''
         },
         column: {
-            prefix: '; COLUMN #col#\n', postfix: ''
+            prefix: ''/*; COLUMN #col#\n'*/, postfix: ''
         },
         line: {
+            numbers: false,
+            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
+        },
+				line2: {
             numbers: false,
             prefix: '\tdta ', postfix: '\n'
         },
@@ -28,7 +64,6 @@ const exportTemplates = [
             binPrefix: '%', hexPrefix: '$', addrPrefix: 'a(', addrPostfix: ')'
         }
      } /*,    
-
 
     {
         name:'Other Assemblers',

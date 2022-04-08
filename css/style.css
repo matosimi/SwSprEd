@@ -131,8 +131,8 @@ pre {
 
 #export_dialog {
     top: 34px;
-    left:103px;
-    width:580px;
+    left: 10%;//103px;
+    width: 80%; //580px;
 }
 
 #help_dialog {
@@ -143,8 +143,9 @@ pre {
 
 #export_frame {
   margin: 5px 0;
-  width:560px;
-  min-height:300px;
+  width: 150% ;//700px;
+  min-width: 500px;
+	min-height:300px;
 }
 
 .dialog_title {
