@@ -249,8 +249,8 @@ const getRGBOn = (frame,col,row) => {
 
 const setColorOn = (col,row,color) => {
         const currentFrame = workspace.frames[workspace.selectedFrame];
-        currentFrame.data[col][row] = color;
-				if (!beforeDrawingState) {beforeDrawingState = _.cloneDeep(workspace)}
+        if (!beforeDrawingState) {beforeDrawingState = _.cloneDeep(workspace)}
+				currentFrame.data[col][row] = color;
         drawBlock(col,row,getColorRGB(workspace.selectedFrame,color));
         
 }
