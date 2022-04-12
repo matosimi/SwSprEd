@@ -2,8 +2,9 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '0.8.3',
-    storageName: 'SwSprEdStore083',
+    version: '0.8.4',
+		releaseDate: '12.04.2022',
+    storageName: 'SwSprEdStore084',
     undoLevels: 128,
     lineResolution: 2,
     spriteHeight: 16,
@@ -249,6 +250,7 @@ const getRGBOn = (frame,col,row) => {
 const setColorOn = (col,row,color) => {
         const currentFrame = workspace.frames[workspace.selectedFrame];
         currentFrame.data[col][row] = color;
+				if (!beforeDrawingState) {beforeDrawingState = _.cloneDeep(workspace)}
         drawBlock(col,row,getColorRGB(workspace.selectedFrame,color));
         
 }
@@ -1420,7 +1422,7 @@ $(document).ready(function () {
     app.addSeparator('appmenu');
     app.addMenuItem('Help', toggleHelp, 'appmenu', 'Shows Help');
     app.addSeparator('appmenu');
-    const ver = $('<div/>').attr('id','ver').html(`SwSprEd v.${options.version} by MatoSimi`);
+    const ver = $('<div/>').attr('id','ver').html(`SwSprEd v${options.version} (${options.releaseDate}) by MatoSimi`);
     $('#appmenu').append(ver);
 
 
