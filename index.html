@@ -105,6 +105,36 @@
         <div class='menuitem clear_left' id='close_export'>Close</div>
       </div>
   </div>
+	
+	  <div id='import_dialog___' class='dialog'>
+      <div class='dialog_title'>Import Frame</div>
+      <div class='dialog_content'>
+        <div class='dialog_blocks'>
+          <div class='dialog_block'>
+            <fieldset>
+              <label class='dialog_label'>Template:</label>
+             <!-- <select id='opt_lastTemplate_i' class='dialog_text_input'>
+              </select> -->
+            </fieldset>
+            <textarea id='import_frame'></textarea>
+            <hr>
+          </div>
+
+        </div>
+        <div class='menuitem clear_left' id='close_import'>Close</div>
+				<div class='menuitem' id='do_import'>Execute Import</div>
+				<div id='import_error_'>.</div>
+      </div>
+  </div>
+	
+	<div id="import_dialog" class="dialog" style="display:none;">
+    <h3>Import Frame Data</h3>
+    <textarea id="import_text" rows="10" cols="50" placeholder="Paste your frame data here..."></textarea>
+    <br>
+    <button id="import_submit">Import</button>
+    <button onclick="toggleImportFrame()">Cancel</button>
+		<div id='import_error'>.</div>
+	</div>
   
 
   <div id='options_dialog' class='dialog'>

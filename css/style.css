@@ -129,7 +129,7 @@ pre {
     left:180px;
 }
 
-#export_dialog {
+#export_dialog,#import_dialog {
     top: 34px;
     left: 10%;//103px;
     width: 80%; //580px;
@@ -141,7 +141,7 @@ pre {
   width:280px;
 }
 
-#export_frame {
+#export_frame,#import_frame {
   margin: 5px 0;
   width: 150% ;//700px;
   min-width: 500px;

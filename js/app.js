@@ -558,6 +558,13 @@ const toggleExport = () => {
     }
 }
 
+const toggleImportFrame = () => {
+    if (toggleDiv('#import_dialog')) {
+        refreshOptions();
+        //exportData();
+    }
+}
+
 const toggleHelp = () => {
     toggleDiv('#help_dialog')
 }
@@ -836,29 +843,65 @@ const parseTemplate = (template) => {
 					if (template.shifts != undefined) 
 						pushBlock("", template.shift);
 	        _.each(workspace.frames, (frame,f) => {
+							tframe = f;
 	            let sprite = '';
-	            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
-	            {
-	              lines = '';
-	              tframe = f;
-	              tcolumn = byteCol;
-	              //pushBlock(frame, template.frame)
-	              frame.data[byteCol].length = options.spriteHeight;
-								let ai = byteCol*4 - i;
-	              pushArray(combinePixelsToBytes(ai < 0 ? frame.data[options.spriteWidth - 1] : frame.data[ai],
-	                                             ai < -1 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 1],
-	                                             ai < -2 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 2],
-	                                             ai < -3 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 3]
-	                                             ));
-	              sprite += getBlock(lines, template.column);
-	            }
-	            pushBlock(sprite, template.frame);
+							if (template?.fontmaker == 1)
+							{
+								pushBlock('', template.frame);
+								let numberFonts = Math.ceil(options.spriteHeight / 32);
+								let charWidth = options.spriteWidth / 4;
+								let charHeigth = Math.floor(options.spriteHeight / 8);
+								for (let font = 0; font < numberFonts; font++)
+								{
+									
+									let linesInThisFont = (charHeigth - font*4) >= 4 ? 4 : charHeigth - font*4;
+									//console.log(linesInThisFont);
+									template.line.prefix = template.line.poop
+												.replace("#char_height#", linesInThisFont)
+								        .replace("#char_width#", charWidth)
+												.replace("#char_data#", '0'.repeat(2*linesInThisFont*charWidth));
+									//console.log(template.line.prefix);
+
+									for (let charY = 0; charY < linesInThisFont; charY++)
+										for (let charX = 0; charX < charWidth; charX++)
+											for (let charLine = 0; charLine < 8; charLine++)
+											 {
+											 	sprite += formatByte(frame.data[charX*4][font*32 + charY*8+charLine]*64+
+																						 frame.data[charX*4+1][font*32 + charY*8+charLine]*16+
+																						 frame.data[charX*4+2][font*32 + charY*8+charLine]*4+
+																						 frame.data[charX*4+3][font*32 + charY*8+charLine]);
+											 }
+									pushBlock(sprite, template.line);
+									sprite = '';
+								}
+									
+								
+							}
+							else
+							{
+		            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
+		            {
+		              lines = '';
+		              tcolumn = byteCol;
+		              //pushBlock(frame, template.frame)
+		              frame.data[byteCol].length = options.spriteHeight;
+									let ai = byteCol*4 - i;
+		              pushArray(combinePixelsToBytes(ai < 0 ? frame.data[options.spriteWidth - 1] : frame.data[ai],
+		                                             ai < -1 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 1],
+		                                             ai < -2 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 2],
+		                                             ai < -3 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 3]
+		                                             ));
+		              sprite += getBlock(lines, template.column);
+		            }
+								pushBlock(sprite, template.frame);
+							}
 	        });
 				}   
         
     }
-
-    pushSpriteColors();
+		if (template?.colors)	//do not push colors if template does not have them
+			pushSpriteColors();
+			
     pushSpriteData();
 
     return parseTemplateVars(`${template.block.prefix}${templateLines}${template.block.postfix}`);
@@ -991,6 +1034,147 @@ const dropFile = function (file) {
     }
 }
 
+// import
+const importFrame = () => {
+    const textData = $('#import_text').val();
+    if (!textData) {
+        alert("Please enter frame data to import");
+        return false;
+    }
+
+    const parsedData = parseImportedFrameData(textData);
+    if (parsedData) {
+        // Save current state for undo and update the current frame
+        saveUndo('import frame', () => {
+            // Directly update the current frame's data
+            workspace.frames[workspace.selectedFrame].data = parsedData;
+						console.log(parsedData);
+            // Ensure the frame structure is maintained
+            if (!workspace.frames[workspace.selectedFrame].colors) {
+                workspace.frames[workspace.selectedFrame].colors = [0x28, 0xca, 0x94]; // Default colors if missing
+            }
+            // Store to localStorage
+            storeWorkspace();
+            // Verify storage
+            const stored = JSON.parse(localStorage.getItem(`${defaultOptions.storageName}_WS`));
+            if (!stored || !stored.frames[workspace.selectedFrame] || 
+                JSON.stringify(stored.frames[workspace.selectedFrame].data) !== JSON.stringify(parsedData)) {
+                console.error("Failed to store frame data correctly");
+                return false;
+            }
+            // Update display
+            updateScreen();
+            toggleImportFrame(); // Close dialog
+            return true;
+        })();
+    }
+    return true;
+};
+
+// Keep parseImportedFrameData as previously modified
+const parseImportedFrameData = (textData) => {
+    try {
+        textData = textData.trim();
+        let frameData = [];
+        let width = options.spriteWidth;
+        let height = options.spriteHeight;
+
+        try {
+            const jsonData = JSON.parse(textData);
+            if (jsonData.Data && typeof jsonData.Data === 'string') {
+                const hexData = jsonData.Data;
+                width = parseInt(jsonData.Width) || width;
+								width *= 4;
+                height = parseInt(jsonData.Height) || height;
+								height *= 8;
+								if (width != options.spriteWidth || height != options.spriteHeight)
+								{
+									alert(`size of data does not match the sprite size!`);
+									return;
+								}
+                const bytes = [];
+                for (let i = 0; i < hexData.length; i += 2) {
+                    const byte = parseInt(hexData.substr(i, 2), 16);
+                    bytes.push(byte);
+                }
+		
+                frameData = [];
+                let byteIndex = 0;
+                for (let row = 0; row < height; row++) {
+                    const rowData = [];
+                    for (let col = 0; col < width; col += 4) {
+                        if (byteIndex < bytes.length) {
+                            const byte = bytes[byteIndex++];
+                            rowData.push((byte >> 6) & 0x3);
+                            if (col + 1 < width) rowData.push((byte >> 4) & 0x3);
+                            if (col + 2 < width) rowData.push((byte >> 2) & 0x3);
+                            if (col + 3 < width) rowData.push(byte & 0x3);
+                        }
+                    }
+                    frameData.push(rowData);
+                }
+            }
+        } catch (jsonError) {
+            const lines = textData.split('\n').map(line => line.trim());
+            let maxWidth = 0;
+
+            lines.forEach(line => {
+                if (line && !line.startsWith(';') && !line.startsWith('//')) {
+                    const values = line.split(/[\s,]+/)
+                        .map(val => {
+                            if (val.startsWith('$')) {
+                                return parseInt(val.slice(1), 16);
+                            } else if (val.startsWith('0x')) {
+                                return parseInt(val.slice(2), 16);
+                            } else if (val.startsWith('%')) {
+                                return parseInt(val.slice(1), 2);
+                            }
+                            return parseInt(val, 10);
+                        })
+                        .filter(val => !isNaN(val) && val >= 0 && val <= 3);
+                    
+                    if (values.length > 0) {
+                        frameData.push(values);
+                        maxWidth = Math.max(maxWidth, values.length);
+                    }
+                }
+            });
+
+            width = maxWidth;
+            height = frameData.length;
+        }
+
+        if (frameData.length === 0) {
+            throw new Error("No valid data found in input");
+        }
+
+        const normalizedData = [];
+        for (let col = 0; col < options.spriteWidth; col++) {
+            normalizedData[col] = [];
+            for (let row = 0; row < options.spriteHeight; row++) {
+                const sourceRow = row % height;
+                const sourceCol = col % width;
+                normalizedData[col][row] = frameData[sourceRow] && frameData[sourceRow][sourceCol] !== undefined 
+                    ? frameData[sourceRow][sourceCol] 
+                    : 0;
+            }
+        }
+
+        return normalizedData;
+    } catch (error) {
+        alert(`Error parsing frame data: ${error.message}`);
+        return null;
+    }
+};
+
+// Update the toggleImportFrame function to reset the textarea
+/*const toggleImportFrame = () => {
+    if (toggleDiv('#import_dialog')) {
+        $('#import_text').val('');  // Clear textarea when opening
+        refreshOptions();
+    }
+};
+*/
 // ************************************ TIMELINE OPERATIONS
 
 const jumpToFrame = f => {
@@ -1447,6 +1631,8 @@ $(document).ready(function () {
     app.addMenuItem('Clone', saveUndo('clone frame', cloneFrame), 'timemenu', 'Adds copy of frame');
     app.addMenuItem('Delete', saveUndo('delete frame', delFrame), 'timemenu', 'Deletes current frame');
     app.addSeparator('timemenu');
+		app.addMenuItem('Import frame', saveUndo('import frame', toggleImportFrame), 'timemenu', 'Imports a frame');
+		app.addSeparator('timemenu');
     app.addMenuItem('&#129092;&#128913;', animFrameLeft, 'timemenu', 'Moves current frame left');
     app.addMenuItem('&#128913;&#129094;', animFrameRight, 'timemenu', 'Moves current frame right');
     app.addSeparator('timemenu');
@@ -1467,6 +1653,9 @@ $(document).ready(function () {
     $("#main").bind('mousedown',()=>{$(".palette").remove()})
     document.addEventListener('keydown', keyPressed);
     $('html').on('dragover',e=>{e.preventDefault()});
+
+		// Add click handler for import button
+    $('#import_submit').on('click', importFrame);
 
     loadWorkspace();
     loadUndos();
