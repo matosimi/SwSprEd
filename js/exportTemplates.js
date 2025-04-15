@@ -18,11 +18,11 @@ const exportTemplates = [
             prefix: '; FRAME #f#\n', postfix: ''
         },
         column: {
-            prefix: ''/*'; COLUMN #col#\n'*/, postfix: ''
+            prefix: '', postfix: ''
         },
         line: {
             numbers: false,
-            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
+            prefix: '\tdta ', postfix: '\n'
         },
 				line2: {
             numbers: false,
@@ -49,11 +49,11 @@ const exportTemplates = [
             prefix: '; FRAME #f#\n', postfix: ''
         },
         column: {
-            prefix: ''/*; COLUMN #col#\n'*/, postfix: ''
+            prefix: '', postfix: ''
         },
         line: {
             numbers: false,
-            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
+            prefix: '\tdta ', postfix: '\n'
         },
 				line2: {
             numbers: false,

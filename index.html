@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="notranslate" translate="no">
 <head>
   <meta charset="UTF-8" />
@@ -106,34 +106,27 @@
       </div>
   </div>
 	
-	  <div id='import_dialog___' class='dialog'>
-      <div class='dialog_title'>Import Frame</div>
-      <div class='dialog_content'>
+	<div id="import_dialog" class="dialog">
+    <div class='dialog_title'>Import Frame Data</div>
+		<div class='dialog_content'>
         <div class='dialog_blocks'>
           <div class='dialog_block'>
-            <fieldset>
-              <label class='dialog_label'>Template:</label>
-             <!-- <select id='opt_lastTemplate_i' class='dialog_text_input'>
-              </select> -->
-            </fieldset>
-            <textarea id='import_frame'></textarea>
-            <hr>
-          </div>
-
-        </div>
-        <div class='menuitem clear_left' id='close_import'>Close</div>
-				<div class='menuitem' id='do_import'>Execute Import</div>
-				<div id='import_error_'>.</div>
-      </div>
-  </div>
-	
-	<div id="import_dialog" class="dialog" style="display:none;">
-    <h3>Import Frame Data</h3>
-    <textarea id="import_text" rows="10" cols="50" placeholder="Paste your frame data here..."></textarea>
-    <br>
-    <button id="import_submit">Import</button>
-    <button onclick="toggleImportFrame()">Cancel</button>
-		<div id='import_error'>.</div>
+					<fieldset>
+					<label class='dialog_label'>Import type:</label>
+						<select id='import_mode' class='dialog_text_input'>
+						<option value='fontmaker'>FontMaker (clibpoard JSON 8-byte character chunks)</option>
+						<option value='columns'>Columns (column by column)</option>
+						<option value='rowsData'>Rows Data (row by row)</option>
+						<option value='rowsChars'>Rows Chars (8-byte character chunks)</option>
+            </select>
+					</fieldset>
+    <textarea class='clear_left' id="import_text" rows="10" cols="50" placeholder="Paste your frame data here..."></textarea>
+    <hr>
+		</div>
+		</div>
+		<div class='menuitem clear_left' id='import_submit'>Import</div>
+		<div class='menuitem' id='close_import' onclick="toggleImportFrame()">Close</div>
+	</div>
 	</div>
   
 

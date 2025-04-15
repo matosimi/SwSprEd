@@ -560,10 +560,10 @@ const toggleExport = () => {
 
 const toggleImportFrame = () => {
     if (toggleDiv('#import_dialog')) {
+        $('#import_text').val(''); // Clear textarea when opening
         refreshOptions();
-        //exportData();
     }
-}
+};
 
 const toggleHelp = () => {
     toggleDiv('#help_dialog')
@@ -1044,82 +1044,103 @@ const importFrame = () => {
 
     const parsedData = parseImportedFrameData(textData);
     if (parsedData) {
-        // Save current state for undo and update the current frame
         saveUndo('import frame', () => {
-            // Directly update the current frame's data
             workspace.frames[workspace.selectedFrame].data = parsedData;
-						console.log(parsedData);
-            // Ensure the frame structure is maintained
             if (!workspace.frames[workspace.selectedFrame].colors) {
-                workspace.frames[workspace.selectedFrame].colors = [0x28, 0xca, 0x94]; // Default colors if missing
+                workspace.frames[workspace.selectedFrame].colors = [0x28, 0xca, 0x94];
             }
-            // Store to localStorage
             storeWorkspace();
-            // Verify storage
             const stored = JSON.parse(localStorage.getItem(`${defaultOptions.storageName}_WS`));
             if (!stored || !stored.frames[workspace.selectedFrame] || 
                 JSON.stringify(stored.frames[workspace.selectedFrame].data) !== JSON.stringify(parsedData)) {
                 console.error("Failed to store frame data correctly");
                 return false;
             }
-            // Update display
             updateScreen();
-            toggleImportFrame(); // Close dialog
+            toggleImportFrame();
             return true;
         })();
     }
     return true;
 };
 
-// Keep parseImportedFrameData as previously modified
 const parseImportedFrameData = (textData) => {
     try {
         textData = textData.trim();
         let frameData = [];
         let width = options.spriteWidth;
         let height = options.spriteHeight;
+        const importMode = $('#import_mode').val();
 
-        try {
-            const jsonData = JSON.parse(textData);
-            if (jsonData.Data && typeof jsonData.Data === 'string') {
-                const hexData = jsonData.Data;
-                width = parseInt(jsonData.Width) || width;
-								width *= 4;
-                height = parseInt(jsonData.Height) || height;
-								height *= 8;
-								if (width != options.spriteWidth || height != options.spriteHeight)
-								{
-									alert(`size of data does not match the sprite size!`);
-									return;
-								}
-                const bytes = [];
-                for (let i = 0; i < hexData.length; i += 2) {
-                    const byte = parseInt(hexData.substr(i, 2), 16);
-                    bytes.push(byte);
-                }
-		
-                frameData = [];
-                let byteIndex = 0;
-                for (let row = 0; row < height; row++) {
-                    const rowData = [];
-                    for (let col = 0; col < width; col += 4) {
-                        if (byteIndex < bytes.length) {
-                            const byte = bytes[byteIndex++];
-                            rowData.push((byte >> 6) & 0x3);
-                            if (col + 1 < width) rowData.push((byte >> 4) & 0x3);
-                            if (col + 2 < width) rowData.push((byte >> 2) & 0x3);
-                            if (col + 3 < width) rowData.push(byte & 0x3);
+        if (importMode === 'fontmaker') {
+            // Parse as JSON character chunks
+            try {
+                const jsonData = JSON.parse(textData);
+                if (jsonData.Data && typeof jsonData.Data === 'string') {
+                    const hexData = jsonData.Data.replace(/\s/g, '');
+                    width = parseInt(jsonData.Width) * 4 || width;
+                    height = parseInt(jsonData.Height) * 8 || height;
+
+                    if (width !== options.spriteWidth || height !== options.spriteHeight) {
+                        alert(`Size of data (${width}x${height}) does not match sprite size (${options.spriteWidth}x${options.spriteHeight})!`);
+                        return null;
+                    }
+
+                    const bytes = [];
+                    for (let i = 0; i < hexData.length; i += 2) {
+                        const byte = parseInt(hexData.substr(i, 2), 16);
+                        if (!isNaN(byte)) {
+                            bytes.push(byte);
                         }
                     }
-                    frameData.push(rowData);
+
+                    const charsPerRow = width / 4;
+                    const charsPerCol = height / 8;
+                    frameData = Array.from({ length: width }, () => Array(height).fill(0));
+
+                    let byteIndex = 0;
+                    for (let charY = 0; charY < charsPerCol; charY++) {
+                        for (let charX = 0; charX < charsPerRow; charX++) {
+                            for (let scanline = 0; scanline < 8; scanline++) {
+                                if (byteIndex >= bytes.length) break;
+                                const byte = bytes[byteIndex++];
+                                const row = charY * 8 + scanline;
+                                if (row >= height) continue;
+
+                                const pixels = [
+                                    (byte >> 6) & 0x3,
+                                    (byte >> 4) & 0x3,
+                                    (byte >> 2) & 0x3,
+                                    byte & 0x3
+                                ];
+
+                                for (let px = 0; px < 4; px++) {
+                                    const col = charX * 4 + px;
+                                    if (col < width) {
+                                        frameData[col][row] = pixels[px];
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
+            } catch (jsonError) {
+                alert('Invalid JSON format for fontmaker mode');
+                return null;
             }
-        } catch (jsonError) {
-            const lines = textData.split('\n').map(line => line.trim());
-            let maxWidth = 0;
+        } else {
+            // Parse as text lines for other modes
+            const lines = textData.split('\n').map(line => {
+                // Remove block comments first
+                line = line.replace(/\/\*[\s\S]*?\*\//g, '');
+                // Remove line comments
+                line = line.replace(/;.*$/, '').replace(/\/\/.*$/, '');
+                return line.trim();
+            }).filter(line => line.length > 0);
+            let byteData = [];
 
             lines.forEach(line => {
-                if (line && !line.startsWith(';') && !line.startsWith('//')) {
+                if (line) {
                     const values = line.split(/[\s,]+/)
                         .map(val => {
                             if (val.startsWith('$')) {
@@ -1131,31 +1152,134 @@ const parseImportedFrameData = (textData) => {
                             }
                             return parseInt(val, 10);
                         })
-                        .filter(val => !isNaN(val) && val >= 0 && val <= 3);
+                        .filter(val => !isNaN(val) && val >= 0 && val <= 255);
                     
                     if (values.length > 0) {
-                        frameData.push(values);
-                        maxWidth = Math.max(maxWidth, values.length);
+                        byteData.push(...values);
                     }
                 }
             });
 
-            width = maxWidth;
-            height = frameData.length;
+            frameData = Array.from({ length: width }, () => Array(height).fill(0));
+
+            if (importMode === 'columns') {
+                // Parse as columns (4 pixels per byte)
+                const bytesPerColumn = Math.ceil(height / 4);
+                const totalColumns = width;
+                const expectedBytes = bytesPerColumn * totalColumns;
+
+                if (byteData.length < expectedBytes) {
+                    alert(`Insufficient data: ${byteData.length} bytes provided, need at least ${expectedBytes} for ${width}x${height} sprite!`);
+                    return null;
+                }
+
+                let byteIndex = 0;
+                // Process columns in groups of 4
+                for (let colGroup = 0; colGroup < width; colGroup += 4) {
+                    // For each row in the current group of columns
+                    for (let row = 0; row < height; row++) {
+                        if (byteIndex >= byteData.length) break;
+                        const byte = byteData[byteIndex++];
+                        
+                        // Split byte into 4 pixels and place in current columns
+                        const pixels = [
+                            (byte >> 6) & 0x3,
+                            (byte >> 4) & 0x3,
+                            (byte >> 2) & 0x3,
+                            byte & 0x3
+                        ];
+
+                        // Place pixels in the current group of columns
+                        for (let px = 0; px < 4; px++) {
+                            const col = colGroup + px;
+                            if (col < width) {
+                                frameData[col][row] = pixels[px];
+                            }
+                        }
+                    }
+                }
+            } else if (importMode === 'rowsData') {
+                // Parse as rows (4 pixels per byte)
+                const bytesPerRow = Math.ceil(width / 4);
+                const totalRows = height;
+                const expectedBytes = bytesPerRow * totalRows;
+
+                if (byteData.length < expectedBytes) {
+                    alert(`Insufficient data: ${byteData.length} bytes provided, need at least ${expectedBytes} for ${width}x${height} sprite!`);
+                    return null;
+                }
+
+                let byteIndex = 0;
+                for (let row = 0; row < height; row++) {
+                    for (let byteCol = 0; byteCol < bytesPerRow; byteCol++) {
+                        if (byteIndex >= byteData.length) break;
+                        const byte = byteData[byteIndex++];
+
+                        const pixels = [
+                            (byte >> 6) & 0x3,
+                            (byte >> 4) & 0x3,
+                            (byte >> 2) & 0x3,
+                            byte & 0x3
+                        ];
+
+                        for (let px = 0; px < 4; px++) {
+                            const col = byteCol * 4 + px;
+                            if (col < width) {
+                                frameData[col][row] = pixels[px];
+                            }
+                        }
+                    }
+                }
+            } else if (importMode === 'rowsChars') {
+                // Parse as character chunks (8 bytes per character)
+                const charsPerRow = Math.floor(width / 4);
+                const charsPerCol = Math.ceil(height / 8);
+                const expectedBytes = charsPerRow * charsPerCol * 8;
+
+                if (byteData.length < expectedBytes) {
+                    alert(`Insufficient data: ${byteData.length} bytes provided, need at least ${expectedBytes} for ${charsPerRow}x${charsPerCol} chars!`);
+                    return null;
+                }
+
+                let byteIndex = 0;
+                for (let charY = 0; charY < charsPerCol; charY++) {
+                    for (let charX = 0; charX < charsPerRow; charX++) {
+                        for (let scanline = 0; scanline < 8; scanline++) {
+                            if (byteIndex >= byteData.length) break;
+                            const byte = byteData[byteIndex++];
+                            const row = charY * 8 + scanline;
+                            if (row >= height) continue;
+
+                            const pixels = [
+                                (byte >> 6) & 0x3,
+                                (byte >> 4) & 0x3,
+                                (byte >> 2) & 0x3,
+                                byte & 0x3
+                            ];
+
+                            for (let px = 0; px < 4; px++) {
+                                const col = charX * 4 + px;
+                                if (col < width) {
+                                    frameData[col][row] = pixels[px];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (frameData.length === 0) {
             throw new Error("No valid data found in input");
         }
 
+        // Normalize frameData to match sprite dimensions
         const normalizedData = [];
         for (let col = 0; col < options.spriteWidth; col++) {
             normalizedData[col] = [];
             for (let row = 0; row < options.spriteHeight; row++) {
-                const sourceRow = row % height;
-                const sourceCol = col % width;
-                normalizedData[col][row] = frameData[sourceRow] && frameData[sourceRow][sourceCol] !== undefined 
-                    ? frameData[sourceRow][sourceCol] 
+                normalizedData[col][row] = frameData[col] && frameData[col][row] !== undefined 
+                    ? frameData[col][row] 
                     : 0;
             }
         }
@@ -1167,14 +1291,6 @@ const parseImportedFrameData = (textData) => {
     }
 };
 
-// Update the toggleImportFrame function to reset the textarea
-/*const toggleImportFrame = () => {
-    if (toggleDiv('#import_dialog')) {
-        $('#import_text').val('');  // Clear textarea when opening
-        refreshOptions();
-    }
-};
-*/
 // ************************************ TIMELINE OPERATIONS
 
 const jumpToFrame = f => {
