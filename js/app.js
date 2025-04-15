@@ -732,7 +732,8 @@ const parseTemplate = (template) => {
     let tframe = 0;
     let tshift = 0;
     let tcolumn = 0;
-		let lastColumn = 0;
+	let lastColumn = 0;
+    let tline = 0;
     let lines = '';
 
     const formatByte = b => {
@@ -770,7 +771,7 @@ const parseTemplate = (template) => {
 
     const getBlock = (block, blockTemp) => {
         let blockLines = `${blockTemp.prefix}${block}${blockTemp.postfix}`;
-        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tshift).replace(/#col#/g, tcolumn);
+        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tshift).replace(/#col#/g, tcolumn).replace(/#lin#/g, tline);
         //lineCount+= blockLines.split(/\r\n|\r|\n/).length + 1;
         return blockLines
     }
@@ -817,6 +818,7 @@ const parseTemplate = (template) => {
         pushByte(workspace.backgroundColor);
         pushArray(workspace.frames[0].colors);
         pushBlock(lines, template.colors);
+        lines = '';
     }
 
     const pushArray = a => {
@@ -874,19 +876,55 @@ const parseTemplate = (template) => {
                     }
                     
                     
-                } else {
-                    // Ensure frame data is properly sized
-                    for (let col = 0; col < options.spriteWidth; col++) {
-                        if (!frame.data[col]) {
-                            frame.data[col] = Array(options.spriteHeight).fill(0);
-                        } else {
-                            frame.data[col] = frame.data[col].slice(0, options.spriteHeight);
-                            while (frame.data[col].length < options.spriteHeight) {
-                                frame.data[col].push(0);
+                } else if (template.name === 'Rows Data Export') {
+                    // Export in row-by-row format (4 pixels per byte)
+                    //pushBlock('', template.frame);
+                    for (let row = 0; row < options.spriteHeight; row++) {
+                        let lineBytes = [];
+                        for (let byteCol = 0; byteCol < Math.ceil(options.spriteWidth / 4); byteCol++) {
+                            const col0 = frame.data[byteCol * 4]?.[row] || 0;
+                            const col1 = frame.data[byteCol * 4 + 1]?.[row] || 0;
+                            const col2 = frame.data[byteCol * 4 + 2]?.[row] || 0;
+                            const col3 = frame.data[byteCol * 4 + 3]?.[row] || 0;
+                            const byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
+                            lineBytes.push(formatByte(byte));
+                        }
+                        lineBody = lineBytes.join(template.byte.separator);
+                        pushLine(lineBody, true);
+                    }
+                    pushBlock(lines, template.frame);
+                    lines = '';
+                } else if (template.name === 'Rows Chars Export') {
+                    // Export in character chunks (8 bytes per character)
+                    //pushBlock('', template.frame);
+                    const charsPerRow = Math.floor(options.spriteWidth / 4);
+                    const charsPerCol = Math.ceil(options.spriteHeight / 8);
+                    
+                    for (let charY = 0; charY < charsPerCol; charY++) {
+                        for (let charX = 0; charX < charsPerRow; charX++) {
+                            let charBytes = [];
+                            for (let scanline = 0; scanline < 8; scanline++) {
+                                const row = charY * 8 + scanline;
+                                if (row >= options.spriteHeight) {
+                                    charBytes.push(formatByte(0));
+                                    continue;
+                                }
+                                
+                                const col0 = frame.data[charX * 4]?.[row] || 0;
+                                const col1 = frame.data[charX * 4 + 1]?.[row] || 0;
+                                const col2 = frame.data[charX * 4 + 2]?.[row] || 0;
+                                const col3 = frame.data[charX * 4 + 3]?.[row] || 0;
+                                const byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
+                                charBytes.push(formatByte(byte));
                             }
+                            lineBody = charBytes.join(template.byte.separator);
+                            pushLine(lineBody, true);
                         }
                     }
-
+                    pushBlock(lines, template.frame);
+                    lines = '';
+                } else {
+                    // Original column-based export
                     for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++) {
                         lines = '';
                         tcolumn = byteCol;
