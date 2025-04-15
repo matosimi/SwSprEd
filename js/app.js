@@ -835,69 +835,82 @@ const parseTemplate = (template) => {
         
     const pushSpriteData = () => {
         let shifts = template.shifts;
-				lastColumn = -1;
-				if (shifts == undefined) shifts = 0;
-				for (let i = 0; i <= shifts; i++)
-				{
-					tshift = i;
-					if (template.shifts != undefined) 
-						pushBlock("", template.shift);
-	        _.each(workspace.frames, (frame,f) => {
-							tframe = f;
-	            let sprite = '';
-							if (template?.fontmaker == 1)
-							{
-								pushBlock('', template.frame);
-								let numberFonts = Math.ceil(options.spriteHeight / 32);
-								let charWidth = options.spriteWidth / 4;
-								let charHeigth = Math.floor(options.spriteHeight / 8);
-								for (let font = 0; font < numberFonts; font++)
-								{
-									
-									let linesInThisFont = (charHeigth - font*4) >= 4 ? 4 : charHeigth - font*4;
-									//console.log(linesInThisFont);
-									template.line.prefix = template.line.poop
-												.replace("#char_height#", linesInThisFont)
-								        .replace("#char_width#", charWidth)
-												.replace("#char_data#", '0'.repeat(2*linesInThisFont*charWidth));
-									//console.log(template.line.prefix);
+        lastColumn = -1;
+        if (shifts == undefined) shifts = 0;
+        for (let i = 0; i <= shifts; i++) {
+            tshift = i;
+            if (template.shifts != undefined) 
+                pushBlock("", template.shift);
+            _.each(workspace.frames, (frame,f) => {
+                tframe = f;
+                let sprite = '';
+                if (template?.fontmaker == 1) {
+                    pushBlock('', template.frame);
+                    let numberFonts = Math.ceil(options.spriteHeight / 32);
+                    let charWidth = options.spriteWidth / 4;
+                    let charHeigth = Math.floor(options.spriteHeight / 8);
+                    for (let font = 0; font < numberFonts; font++)
+                    {
+                        
+                        let linesInThisFont = (charHeigth - font*4) >= 4 ? 4 : charHeigth - font*4;
+                        //console.log(linesInThisFont);
+                        template.line.prefix = template.line.poop
+                                    .replace("#char_height#", linesInThisFont)
+                                .replace("#char_width#", charWidth)
+                                .replace("#char_data#", '0'.repeat(2*linesInThisFont*charWidth));
+                        //console.log(template.line.prefix);
 
-									for (let charY = 0; charY < linesInThisFont; charY++)
-										for (let charX = 0; charX < charWidth; charX++)
-											for (let charLine = 0; charLine < 8; charLine++)
-											 {
-											 	sprite += formatByte(frame.data[charX*4][font*32 + charY*8+charLine]*64+
-																						 frame.data[charX*4+1][font*32 + charY*8+charLine]*16+
-																						 frame.data[charX*4+2][font*32 + charY*8+charLine]*4+
-																						 frame.data[charX*4+3][font*32 + charY*8+charLine]);
-											 }
-									pushBlock(sprite, template.line);
-									sprite = '';
-								}
-									
-								
-							}
-							else
-							{
-		            for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++)
-		            {
-		              lines = '';
-		              tcolumn = byteCol;
-		              //pushBlock(frame, template.frame)
-		              frame.data[byteCol].length = options.spriteHeight;
-									let ai = byteCol*4 - i;
-		              pushArray(combinePixelsToBytes(ai < 0 ? frame.data[options.spriteWidth - 1] : frame.data[ai],
-		                                             ai < -1 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 1],
-		                                             ai < -2 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 2],
-		                                             ai < -3 ? frame.data[options.spriteWidth - 1] : frame.data[ai + 3]
-		                                             ));
-		              sprite += getBlock(lines, template.column);
-		            }
-								pushBlock(sprite, template.frame);
-							}
-	        });
-				}   
-        
+                        for (let charY = 0; charY < linesInThisFont; charY++)
+                            for (let charX = 0; charX < charWidth; charX++)
+                                for (let charLine = 0; charLine < 8; charLine++)
+                                 {
+                                 	sprite += formatByte(frame.data[charX*4][font*32 + charY*8+charLine]*64+
+                                                                 frame.data[charX*4+1][font*32 + charY*8+charLine]*16+
+                                                                 frame.data[charX*4+2][font*32 + charY*8+charLine]*4+
+                                                                 frame.data[charX*4+3][font*32 + charY*8+charLine]);
+                                 }
+                        pushBlock(sprite, template.line);
+                        sprite = '';
+                    }
+                    
+                    
+                } else {
+                    // Ensure frame data is properly sized
+                    for (let col = 0; col < options.spriteWidth; col++) {
+                        if (!frame.data[col]) {
+                            frame.data[col] = Array(options.spriteHeight).fill(0);
+                        } else {
+                            frame.data[col] = frame.data[col].slice(0, options.spriteHeight);
+                            while (frame.data[col].length < options.spriteHeight) {
+                                frame.data[col].push(0);
+                            }
+                        }
+                    }
+
+                    for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++) {
+                        lines = '';
+                        tcolumn = byteCol;
+                        let ai = byteCol*4 - i;
+                        
+                        // Get columns with bounds checking
+                        const getColumn = (index) => {
+                            if (index < 0) return frame.data[options.spriteWidth - 1];
+                            if (index >= options.spriteWidth) return frame.data[0];
+                            return frame.data[index];
+                        };
+
+                        const col0 = getColumn(ai);
+                        const col1 = getColumn(ai + 1);
+                        const col2 = getColumn(ai + 2);
+                        const col3 = getColumn(ai + 3);
+
+                        pushArray(combinePixelsToBytes(col0, col1, col2, col3));
+                        sprite += getBlock(lines, template.column);
+                    }
+                    pushBlock(sprite, template.frame);
+                }
+            });
+        }   
     }
 		if (template?.colors)	//do not push colors if template does not have them
 			pushSpriteColors();

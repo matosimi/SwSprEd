@@ -22,7 +22,7 @@ const exportTemplates = [
         },
         line: {
             numbers: false,
-            prefix: '\tdta ', postfix: '\n'
+            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
         },
 				line2: {
             numbers: false,
@@ -53,7 +53,7 @@ const exportTemplates = [
         },
         line: {
             numbers: false,
-            prefix: '\tdta ', postfix: '\n'
+            prefix: '\tdta ', postfix: '\t;COLUMN #col#\n'
         },
 				line2: {
             numbers: false,
