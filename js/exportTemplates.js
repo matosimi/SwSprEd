@@ -129,7 +129,7 @@ const exportTemplates = [
     {
         name:'Rows Chars Export',
         block: {
-            prefix: '; Exports chars in rows format: 8 bytes per char, #widthdec# chars in a row, #heightdec# rows\n; #frames#,#height#,#width#\n\n', postfix: ''
+            prefix: '; Exports chars in rows format: 8 bytes per char, #widthdec# chars in a row, #heightdecdiv8# rows\n; frames, height, width\n; #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
             prefix: '; COLORS (background, color0, color1, color2)\n', postfix: '\n'
