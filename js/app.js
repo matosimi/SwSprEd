@@ -4,7 +4,7 @@ const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
     version: '1.0.0',
 	releaseDate: '16.04.2025',
-    storageName: 'SwSprEdStore100',
+    storageName: 'SwSprEdStore',
     undoLevels: 128,
     lineResolution: 2,
     spriteHeight: 16,
@@ -759,6 +759,7 @@ const parseTemplate = (template) => {
         .replace(/#height#/g, formatByte(options.spriteHeight))
         .replace(/#width#/g, formatByte(options.spriteWidth >>> 2))
         .replace(/#heightdec#/g, options.spriteHeight)
+        .replace(/#heightdecdiv8#/g, Math.ceil(options.spriteHeight/8))
         .replace(/#widthdec#/g, options.spriteWidth >>> 2)
         .replace(/#frames#/g, formatByte(workspace.frames.length))
         .replace(/#maxheight#/g, formatByte(options.spriteHeight-1))
@@ -897,27 +898,26 @@ const parseTemplate = (template) => {
                     // Export in character chunks (8 bytes per character)
                     const charsPerRow = Math.floor(options.spriteWidth / 4);
                     const charsPerCol = Math.ceil(options.spriteHeight / 8);
+                    const totalChars = charsPerRow * charsPerCol;
+                    const totalBytes = totalChars * 8;
                     
                     for (let charY = 0; charY < charsPerCol; charY++) {
                         tcharline = charY;
                         for (let charX = 0; charX < charsPerRow; charX++) {
-                            let charBytes = [];
                             for (let scanline = 0; scanline < 8; scanline++) {
                                 const row = charY * 8 + scanline;
-                                if (row >= options.spriteHeight) {
-                                    charBytes.push(formatByte(0));
-                                    continue;
+                                let byte = 0;
+                                
+                                if (row < options.spriteHeight) {
+                                    const col0 = frame.data[charX * 4]?.[row] || 0;
+                                    const col1 = frame.data[charX * 4 + 1]?.[row] || 0;
+                                    const col2 = frame.data[charX * 4 + 2]?.[row] || 0;
+                                    const col3 = frame.data[charX * 4 + 3]?.[row] || 0;
+                                    byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
                                 }
                                 
-                                const col0 = frame.data[charX * 4]?.[row] || 0;
-                                const col1 = frame.data[charX * 4 + 1]?.[row] || 0;
-                                const col2 = frame.data[charX * 4 + 2]?.[row] || 0;
-                                const col3 = frame.data[charX * 4 + 3]?.[row] || 0;
-                                const byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
-                                pushByte(byte, row == options.spriteHeight - 1 && charX == charsPerRow - 1);
+                                pushByte(byte, row === options.spriteHeight - 1 && charX === charsPerRow - 1 && scanline === 7);
                             }
-                            //lineBody = charBytes.join(template.byte.separator);
-                            //pushLine(lineBody, true);
                         }
                     }
                     pushBlock(lines, template.frame);
@@ -1123,6 +1123,26 @@ const importFrame = () => {
     return true;
 };
 
+const handleFileInput = (file) => {
+    if (file.size > 4096) { // 4KB
+        if (!confirm('File is larger than 4KB. Do you want to proceed?')) {
+            return;
+        }
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        const bytes = new Uint8Array(arrayBuffer);
+        let hexString = '';
+        for (let i = 0; i < bytes.length; i++) {
+            hexString += bytes[i].toString(16).padStart(2, '0');
+        }
+        $('#import_text').val(hexString);
+    };
+    reader.readAsArrayBuffer(file);
+};
+
 const parseImportedFrameData = (textData) => {
     try {
         textData = textData.trim();
@@ -1130,6 +1150,18 @@ const parseImportedFrameData = (textData) => {
         let width = options.spriteWidth;
         let height = options.spriteHeight;
         const importMode = $('#import_mode').val();
+
+        // Check if input is a continuous hex string (no separators)
+        if (/^[0-9a-fA-F]+$/.test(textData)) {
+            const bytes = [];
+            for (let i = 0; i < textData.length; i += 2) {
+                const byte = parseInt(textData.substr(i, 2), 16);
+                if (!isNaN(byte)) {
+                    bytes.push(byte);
+                }
+            }
+            textData = bytes.join(', ');
+        }
 
         if (importMode === 'fontmaker') {
             // Parse as JSON character chunks
@@ -1831,6 +1863,44 @@ $(document).ready(function () {
 
 		// Add click handler for import button
     $('#import_submit').on('click', importFrame);
+
+    // Add file input and drag-drop handlers for import
+    const importTextArea = $('#import_text');
+    const fileInput = $('<input type="file" id="import_file" style="display: none">');
+    
+    // Add file input to the dialog
+    $('#import_dialog').prepend(fileInput);
+
+    // Handle browse_raw button click
+    $('#browse_raw').on('click', () => fileInput.click());
+
+    fileInput.on('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileInput(e.target.files[0]);
+        }
+    });
+
+    importTextArea.on('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        importTextArea.addClass('dragover');
+    });
+
+    importTextArea.on('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        importTextArea.removeClass('dragover');
+    });
+
+    importTextArea.on('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        importTextArea.removeClass('dragover');
+        
+        if (e.originalEvent.dataTransfer.files.length > 0) {
+            handleFileInput(e.originalEvent.dataTransfer.files[0]);
+        }
+    });
 
     loadWorkspace();
     loadUndos();
