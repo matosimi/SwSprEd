@@ -9,7 +9,7 @@
   <script src='https://code.jquery.com/jquery-latest.min.js'></script>
   <!-- <script src="js/jquery-sortable.js"></script>   -->
   <script src='https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.5/lodash.js'></script>
-  <link rel='stylesheet' type='text/css' href='css/style.css?v=084'>
+  <link rel='stylesheet' type='text/css' href='css/style.css?v=100'>
 	<link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 
@@ -114,10 +114,10 @@
 					<fieldset>
 					<label class='dialog_label'>Import type:</label>
 						<select id='import_mode' class='dialog_text_input'>
-						<option value='fontmaker'>FontMaker (clipboard JSON 8-byte character chunks)</option>
-						<option value='columns'>Columns (column by column)</option>
+						<option value='fontmaker'>FontMaker (clipboard JSON 8-byte character chunks in rows)</option>
+						<option value='columns'>Columns (column of bytes, column by column)</option>
 						<option value='rowsData'>Rows Data (row by row)</option>
-						<option value='rowsChars'>Rows Chars (8-byte character chunks)</option>
+						<option value='rowsChars'>Rows Chars (8-byte character chunks in rows)</option>
             </select>
 					</fieldset>
     <textarea class='clear_left' id="import_text" rows="10" cols="50" placeholder="Paste your frame data here..."></textarea>
@@ -230,9 +230,9 @@
       </div>
   </div>
 
-  <script src='js/exportTemplates.js?v=084'></script>
-  <script src='js/gui.js?v=084'></script>
-  <script src='js/app.js?v=084'></script>
+  <script src='js/exportTemplates.js?v=100'></script>
+  <script src='js/gui.js?v=100'></script>
+  <script src='js/app.js?v=100'></script>
 </body>
 
 </html>

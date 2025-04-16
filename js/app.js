@@ -2,9 +2,9 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '0.8.4',
-		releaseDate: '12.04.2022',
-    storageName: 'SwSprEdStore084',
+    version: '1.0.0',
+	releaseDate: '16.04.2025',
+    storageName: 'SwSprEdStore100',
     undoLevels: 128,
     lineResolution: 2,
     spriteHeight: 16,
@@ -351,7 +351,7 @@ const locateCell = (event) => {
 }
 
 const onCanvasMove = (event) => {
-    if (player) { return false };
+    if (player || $('.dialog:visible').length > 0) { return false };
     const newCell = locateCell(event);
     if (!sameCell(currentCell,newCell)) {
         if (event.buttons > 0) {
@@ -361,18 +361,17 @@ const onCanvasMove = (event) => {
 }
 
 const clickOnCanvas = (event) => {
-    if (player) { return false };
+    if (player || $('.dialog:visible').length > 0) { return false };
     let color = workspace.selectedColor;
     if (event.buttons == 2) { // right button
             color = 0;
     }
     currentCell = locateCell(event);
-    //console.log(`x: ${currentCell.col} y: ${currentCell.row} c: ${color}`);
     setColorOn(currentCell.col,currentCell.row,color);
 }
 
 const clickRightOnCanvas = (event) => {
-    if (player) { return false };
+    if (player || $('.dialog:visible').length > 0) { return false };
     event.preventDefault();
     return false;
 }
@@ -733,7 +732,6 @@ const parseTemplate = (template) => {
     let tshift = 0;
     let tcolumn = 0;
 	let lastColumn = 0;
-    let tline = 0;
     let lines = '';
 
     const formatByte = b => {
@@ -760,6 +758,8 @@ const parseTemplate = (template) => {
         return template
         .replace(/#height#/g, formatByte(options.spriteHeight))
         .replace(/#width#/g, formatByte(options.spriteWidth >>> 2))
+        .replace(/#heightdec#/g, options.spriteHeight)
+        .replace(/#widthdec#/g, options.spriteWidth >>> 2)
         .replace(/#frames#/g, formatByte(workspace.frames.length))
         .replace(/#maxheight#/g, formatByte(options.spriteHeight-1))
         .replace(/#maxframes#/g, formatByte(workspace.frames.length-1))
@@ -771,7 +771,7 @@ const parseTemplate = (template) => {
 
     const getBlock = (block, blockTemp) => {
         let blockLines = `${blockTemp.prefix}${block}${blockTemp.postfix}`;
-        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tshift).replace(/#col#/g, tcolumn).replace(/#lin#/g, tline);
+        blockLines = blockLines.replace(/#f#/g, tframe).replace(/#s#/g, tshift).replace(/#col#/g, tcolumn);
         //lineCount+= blockLines.split(/\r\n|\r|\n/).length + 1;
         return blockLines
     }
@@ -783,16 +783,16 @@ const parseTemplate = (template) => {
     const pushLine = (line, last) => {
         const num = (template.line.numbers) ? `${options.startingLine + options.lineStep * lineCount} `:'';
         lineCount++;
-				if (tcolumn == lastColumn)
-				{
-        	lines += `${num}${template.line2.prefix}${line}${last?template.line2.lastpostfix || template.line2.postfix:template.line2.postfix}`;
+        if (tcolumn == lastColumn)
+        {
+            lines += `${num}${template.line2.prefix}${line}${last?template.line2.lastpostfix || template.line2.postfix:template.line2.postfix}`;
         }
-				else
-				{
-					lines += `${num}${template.line.prefix}${line}${last?template.line.lastpostfix || template.line.postfix:template.line.postfix}`;
-					lastColumn = tcolumn;
-				}
-				byteInRow = 0;
+        else
+        {
+            lines += `${num}${template.line.prefix}${line}${last?template.line.lastpostfix || template.line.postfix:template.line.postfix}`;
+            lastColumn = tcolumn;
+        }
+        byteInRow = 0;
         lineBody = '';
     }
 
@@ -857,9 +857,9 @@ const parseTemplate = (template) => {
                         let linesInThisFont = (charHeigth - font*4) >= 4 ? 4 : charHeigth - font*4;
                         //console.log(linesInThisFont);
                         template.line.prefix = template.line.poop
-                                    .replace("#char_height#", linesInThisFont)
-                                .replace("#char_width#", charWidth)
-                                .replace("#char_data#", '0'.repeat(2*linesInThisFont*charWidth));
+                                      .replace("#char_height#", linesInThisFont)
+                                      .replace("#char_width#", charWidth)
+                          
                         //console.log(template.line.prefix);
 
                         for (let charY = 0; charY < linesInThisFont; charY++)
@@ -878,7 +878,7 @@ const parseTemplate = (template) => {
                     
                 } else if (template.name === 'Rows Data Export') {
                     // Export in row-by-row format (4 pixels per byte)
-                    //pushBlock('', template.frame);
+                    tline = 0;
                     for (let row = 0; row < options.spriteHeight; row++) {
                         let lineBytes = [];
                         for (let byteCol = 0; byteCol < Math.ceil(options.spriteWidth / 4); byteCol++) {
@@ -887,20 +887,19 @@ const parseTemplate = (template) => {
                             const col2 = frame.data[byteCol * 4 + 2]?.[row] || 0;
                             const col3 = frame.data[byteCol * 4 + 3]?.[row] || 0;
                             const byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
-                            lineBytes.push(formatByte(byte));
+                            pushByte(byte, row == options.spriteHeight - 1 && byteCol == Math.ceil(options.spriteWidth / 4) - 1);
                         }
-                        lineBody = lineBytes.join(template.byte.separator);
-                        pushLine(lineBody, true);
                     }
                     pushBlock(lines, template.frame);
                     lines = '';
+                    tline = 0;
                 } else if (template.name === 'Rows Chars Export') {
                     // Export in character chunks (8 bytes per character)
-                    //pushBlock('', template.frame);
                     const charsPerRow = Math.floor(options.spriteWidth / 4);
                     const charsPerCol = Math.ceil(options.spriteHeight / 8);
                     
                     for (let charY = 0; charY < charsPerCol; charY++) {
+                        tcharline = charY;
                         for (let charX = 0; charX < charsPerRow; charX++) {
                             let charBytes = [];
                             for (let scanline = 0; scanline < 8; scanline++) {
@@ -915,17 +914,18 @@ const parseTemplate = (template) => {
                                 const col2 = frame.data[charX * 4 + 2]?.[row] || 0;
                                 const col3 = frame.data[charX * 4 + 3]?.[row] || 0;
                                 const byte = col0 * 64 + col1 * 16 + col2 * 4 + col3;
-                                charBytes.push(formatByte(byte));
+                                pushByte(byte, row == options.spriteHeight - 1 && charX == charsPerRow - 1);
                             }
-                            lineBody = charBytes.join(template.byte.separator);
-                            pushLine(lineBody, true);
+                            //lineBody = charBytes.join(template.byte.separator);
+                            //pushLine(lineBody, true);
                         }
                     }
                     pushBlock(lines, template.frame);
                     lines = '';
                 } else {
                     // Original column-based export
-                    for (let byteCol = 0; byteCol < Math.floor(options.spriteWidth / 4); byteCol++) {
+                    const bytesPerRow = Math.ceil(options.spriteWidth / 4);
+                    for (let byteCol = 0; byteCol < bytesPerRow; byteCol++) {
                         lines = '';
                         tcolumn = byteCol;
                         let ai = byteCol*4 - i;
@@ -942,7 +942,11 @@ const parseTemplate = (template) => {
                         const col2 = getColumn(ai + 2);
                         const col3 = getColumn(ai + 3);
 
-                        pushArray(combinePixelsToBytes(col0, col1, col2, col3));
+                        // Ensure we only process the exact number of rows needed
+                        const combinedBytes = combinePixelsToBytes(col0, col1, col2, col3);
+                        for (let row = 0; row < options.spriteHeight; row++) {
+                            pushByte(combinedBytes[row], row === options.spriteHeight - 1);
+                        }
                         sprite += getBlock(lines, template.column);
                     }
                     pushBlock(sprite, template.frame);
@@ -951,7 +955,11 @@ const parseTemplate = (template) => {
         }   
     }
 		if (template?.colors)	//do not push colors if template does not have them
-			pushSpriteColors();
+			{
+                tline = 1; //set line to 1 to avoid line 0
+                tcharLine = 1;
+                pushSpriteColors();
+            }
 			
     pushSpriteData();
 

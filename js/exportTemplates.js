@@ -3,10 +3,10 @@
 
 const exportTemplates = [
     {
-        name:'MADS Assembler + 3 shifts right',
+        name:'Column Data Export + 3 shifts right',
         shifts: 3,
 				block: {
-            prefix: '; SPRITE DATA\n; frames, height, byteColumns\n  dta #frames#,#height#,#width#\n\n', postfix: ''
+            prefix: '; Exports bytes in column format: #heightdec# bytes per column, #widthdec# columns, + all the data is additionally 3 times shifted right by a pixel (2 bits)\n; SPRITE DATA\n; frames, height, byteColumns\n; #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
             prefix: '; COLORS (background, color0, color1, color2)\n', postfix: ''
@@ -35,9 +35,9 @@ const exportTemplates = [
      },     
 
     {
-        name:'MADS Assembler',
+        name:'Column Data Export',
         block: {
-            prefix: '; SPRITE DATA\n; frames, height, byteColumns\n  dta #frames#,#height#,#width#\n\n', postfix: ''
+            prefix: '; Exports bytes in column format: #heightdec# bytes per column, #widthdec# columns\n; SPRITE DATA\n; frames, height, byteColumns\n; #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
             prefix: '; COLORS (background, color0, color1, color2)\n', postfix: ''
@@ -88,7 +88,7 @@ const exportTemplates = [
         line: {
             numbers: false,
             prefix: '', postfix: '"}\n\n',
-						poop: '{"Width":"#char_width#","Height":"#char_height#","Chars":"#char_data#","Data":"'
+						poop: '{"Width":"#char_width#","Height":"#char_height#","Data":"'
         },
 				line2: {
             numbers: false,
@@ -104,17 +104,17 @@ const exportTemplates = [
     {
         name:'Rows Data Export',
         block: {
-            prefix: '; Rows Data Export\n; frames, height, width\n; #frames#,#height#,#width#\n\n', postfix: ''
+            prefix: '; Exports bytes in rows format: #widthdec# bytes per row, #heightdec# rows\n; frames, height, width\n; #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
-            prefix: '; Colors (background, color0, color1, color2)\n', postfix: '\n'
+            prefix: '; COLORS (background, color0, color1, color2)\n', postfix: '\n'
         },
         frame: {
-            prefix: '; Frame #f#\n', postfix: '\n'
+            prefix: '; FRAME #f#\n', postfix: '\n'
         },
         line: {
         numbers: false,
-            prefix: '\tdta ', postfix: '\t;LINE #lin#\n'
+            prefix: '\tdta ', postfix: '\n'
         },
         line2: {
             numbers: false,
@@ -129,13 +129,13 @@ const exportTemplates = [
     {
         name:'Rows Chars Export',
         block: {
-            prefix: '; Rows Chars Export\n; frames, height, width\n; #frames#,#height#,#width#\n\n', postfix: ''
+            prefix: '; Exports chars in rows format: 8 bytes per char, #widthdec# chars in a row, #heightdec# rows\n; #frames#,#height#,#width#\n\n', postfix: ''
         },
         colors: {
-            prefix: '; Colors (background, color0, color1, color2)\n', postfix: '\n'
+            prefix: '; COLORS (background, color0, color1, color2)\n', postfix: '\n'
         },
         frame: {
-            prefix: '; Frame #f#\n', postfix: '\n'
+            prefix: '; FRAME #f#\n', postfix: '\n'
         },
         line: {
             numbers: false,
