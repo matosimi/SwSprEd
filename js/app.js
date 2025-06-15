@@ -2,8 +2,8 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '1.0.0',
-	releaseDate: '16.04.2025',
+    version: '1.0.1',
+	releaseDate: '15.06.2025',
     storageName: 'SwSprEdStore',
     undoLevels: 128,
     lineResolution: 2,
@@ -621,7 +621,7 @@ const validateOptions = () => {
 
     clampOption('bytesPerLine',1,100000);
     clampOption('spriteHeight',1,128);
-    clampOption('spriteWidth',4,24);
+    clampOption('spriteWidth',4,32);
     clampOption('animationSpeed',1,100);
     
     return true;
