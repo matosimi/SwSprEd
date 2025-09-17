@@ -363,7 +363,8 @@ const onCanvasMove = (event) => {
 const clickOnCanvas = (event) => {
     if (player || $('.dialog:visible').length > 0) { return false };
     let color = workspace.selectedColor;
-    if (event.buttons == 2) { // right button
+		// Right mouse OR Shift+Left acts as background draw
+    if (event.buttons === 2 || (event.buttons === 1 && event.shiftKey)) {
             color = 0;
     }
     currentCell = locateCell(event);
