@@ -34,6 +34,35 @@ let undos = [];
 let redos = [];
 let beforeDrawingState = null;
 
+// Custom palette buffer: 128 entries, each 3 bytes RGB (384 bytes)
+let customPalette = null;
+const PALETTE_KEY = `${defaultOptions.storageName}_PALETTE`;
+
+const bytesToBase64 = (bytes) => {
+	let binary = '';
+	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+	return btoa(binary);
+}
+
+const base64ToBytes = (b64) => {
+	const binary = atob(b64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i) & 0xFF;
+	return bytes;
+}
+
+const paletteToFileByte = () => {
+	if (options.palette === 'NTSC') return 1;
+	if (options.palette === 'CUSTOM') return 2;
+	return 0;
+};
+
+const paletteFromFileByte = (byte) => {
+	if (byte === 1) return 'NTSC';
+	if (byte === 2) return 'CUSTOM';
+	return 'PAL';
+};
+
 const defaultWorkspace = {
     selectedColor: 1,
     selectedFrame: 0,
@@ -215,6 +244,26 @@ const getColorRGB = (frame,c) => {
 }
 
 const getByteRGB = (cval) => {
+
+	// If a custom palette is selected and loaded, prefer it over PAL/NTSC math
+	if (options.palette === 'CUSTOM' && customPalette instanceof Uint8Array) {
+		if (customPalette.length === 768) {
+			const fileIndex = (cval | 1) & 0xFF; // ensure odd index within 0..255
+			const base = fileIndex * 3;
+			const r = customPalette[base + 0] | 0;
+			const g = customPalette[base + 1] | 0;
+			const b = customPalette[base + 2] | 0;
+			return `rgb(${r},${g},${b})`;
+		}
+		if (customPalette.length === 384) {
+			const idx = Math.max(0, Math.min(127, Math.round(cval / 2)));
+			const base = idx * 3;
+			const r = customPalette[base + 0] | 0;
+			const g = customPalette[base + 1] | 0;
+			const b = customPalette[base + 2] | 0;
+			return `rgb(${r},${g},${b})`;
+		}
+	}
 
     const cr = (cval >> 4) & 15;
     const lm = cval & 15;
@@ -1005,7 +1054,7 @@ const saveFile = () => {
     let listByte = 0;
     binList.push(swsprHeader);
     binList.push(workspace.selectedFrame,workspace.selectedColor,workspace.backgroundColor);
-    binList.push(options.animationSpeed,options.palette=='PAL'?0:1,options.lineResolution);
+    binList.push(options.animationSpeed, paletteToFileByte(), options.lineResolution);
     binList.push([0,0,0,0,0,0]); // 6 unused bytes
     binList.push(workspace.frames.length,options.spriteHeight,options.spriteWidth);
     binList.push(workspace.frames[0].colors);
@@ -1014,6 +1063,9 @@ const saveFile = () => {
       _.each(workspace.frames,f=>{f.data[col].length=options.spriteHeight;binList.push(f.data[col])});
     
     binList = _.flatMap(binList);
+    if (options.palette === 'CUSTOM' && customPalette instanceof Uint8Array) {
+        binList = binList.concat(Array.from(customPalette));
+    }
     var a = document.createElement('a');
     document.body.appendChild(a);
     var file = new Blob([new Uint8Array(binList)]);
@@ -1030,6 +1082,53 @@ const openFile = function (event) {
     var file = input.files[0];
     dropFile(file)
 };
+
+// Load custom 128xRGB palette (384 bytes)
+const openPaletteFile = function (event) {
+	var input = event.target;
+	var file = input.files[0];
+	loadCustomPalette(file);
+};
+
+const loadCustomPalette = (file) => {
+	if (!file) { return; }
+	const reader = new FileReader();
+	reader.onload = () => {
+		try {
+			const bytes = new Uint8Array(reader.result);
+			if (bytes.length !== 384 && bytes.length !== 768) {
+				alert('Palette file must be 384 bytes (128xRGB) or 768 bytes (256xRGB).');
+				return;
+			}
+			customPalette = bytes;
+			try { localStorage.setItem(PALETTE_KEY, bytesToBase64(bytes)); } catch(e) { console.log(e); }
+			updateScreen();
+		} catch (e) {
+			console.log(e);
+			alert('Failed to load palette file.');
+		}
+	};
+	reader.readAsArrayBuffer(file);
+};
+
+const clearCustomPalette = () => {
+	customPalette = null;
+	try { localStorage.removeItem(PALETTE_KEY); } catch(e) { console.log(e); }
+	updateScreen();
+};
+
+const loadPaletteFromStorage = () => {
+	try {
+		const b64 = localStorage.getItem(PALETTE_KEY);
+		if (!b64) return;
+		const bytes = base64ToBytes(b64);
+		if (bytes && (bytes.length === 384 || bytes.length === 768)) {
+			customPalette = bytes;
+		}
+	} catch(e) {
+		console.log(e);
+	}
+}
 
 const parseBinary = (binData) => {
 
@@ -1060,7 +1159,7 @@ const parseBinary = (binData) => {
         wrkspc.selectedColor = binData[binPtr++];
         wrkspc.backgroundColor = binData[binPtr++];
         options.animationSpeed = binData[binPtr++];
-        options.palette = (binData[binPtr++]==1)?'NTSC':'PAL';
+        options.palette = paletteFromFileByte(binData[binPtr++]);
         options.lineResolution = binData[binPtr++];
         binPtr += 6; // unused bytes
         const aplFrames = binData[binPtr++];
@@ -1090,6 +1189,13 @@ const parseBinary = (binData) => {
           }
         }
         wrkspc.frames.length = aplFrames;
+        if (options.palette === 'CUSTOM') {
+            const remaining = binSize - binPtr;
+            if (remaining === 384 || remaining === 768) {
+                customPalette = new Uint8Array(binData.subarray(binPtr, binPtr + remaining));
+                try { localStorage.setItem(PALETTE_KEY, bytesToBase64(customPalette)); } catch(e) { console.log(e); }
+            }
+        }
         return wrkspc;
 
     } else {
@@ -1937,6 +2043,20 @@ $(document).ready(function () {
 
     loadWorkspace();
     loadUndos();
+    loadPaletteFromStorage();
+
+    // Wire custom palette controls in options dialog
+    $('#btn_load_palette').off('click').on('click', function(){
+        $('#custom_palette_file').val('');
+        $('#custom_palette_file').click();
+    });
+    $('#custom_palette_file').off('change').on('change', function(e){
+        openPaletteFile(e);
+    });
+    $('#btn_clear_palette').off('click').on('click', function(){
+        clearCustomPalette();
+    });
+
     newCanvas();
     updateScreen();
 
