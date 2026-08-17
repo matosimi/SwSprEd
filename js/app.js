@@ -24,7 +24,7 @@ const defaultOptions = {
     squarePixel: 1
 }
 let options = {};
-const dontSave = ['version', 'storageName'];
+const dontSave = ['version', 'releaseDate', 'storageName'];
 
 let editor = null;
 let player = 0;
@@ -668,7 +668,8 @@ const loadOptions = () => {
         options = _.assignIn({}, defaultOptions);
         storeOptions();
     } else {
-        options = _.assignIn({}, defaultOptions, JSON.parse(localStorage.getItem(defaultOptions.storageName)));
+        const stored = _.omit(JSON.parse(localStorage.getItem(defaultOptions.storageName)), dontSave);
+        options = _.assignIn({}, defaultOptions, stored);
     }
 }
 
