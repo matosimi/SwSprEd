@@ -2,7 +2,7 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '1.0.2',
+    version: '1.0.3',
 	releaseDate: '17.08.2026',
     storageName: 'SwSprEdStore',
     undoLevels: 128,
@@ -393,13 +393,16 @@ const sameCell = (c,n) => {
 let isDrawing = false;
 let editorCanvasEl = null;
 
+const nativeEvent = (event) => event.originalEvent || event;
+
 const getCanvasCoords = (event, canvas) => {
+    const e = nativeEvent(event);
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    const scaleX = rect.width ? canvas.width / rect.width : 1;
+    const scaleY = rect.height ? canvas.height / rect.height : 1;
     return {
-        x: (event.clientX - rect.left) * scaleX,
-        y: (event.clientY - rect.top) * scaleY
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
     };
 };
 
@@ -411,41 +414,49 @@ const locateCell = (event, canvas) => {
     };
 };
 
+const getStrokeColor = (event) => {
+    const e = nativeEvent(event);
+    if (e.button === 2 || e.buttons === 2) { return 0; }
+    if (e.shiftKey && (e.button === 0 || e.buttons === 1)) { return 0; }
+    return workspace.selectedColor;
+};
+
 const onCanvasMove = (event) => {
-    if (player || $('.dialog:visible').length > 0) { return false };
+    if (player || $('.dialog:visible').length > 0) { return; }
     const newCell = locateCell(event, event.currentTarget);
-    if (!sameCell(currentCell, newCell)) {
-        if (isDrawing || event.buttons > 0) {
-            paintOnCanvas(event);
-        }
+    if (!sameCell(currentCell, newCell) && (isDrawing || nativeEvent(event).buttons > 0)) {
+        paintOnCanvas(event);
     }
 };
 
 const paintOnCanvas = (event) => {
-    if (player || $('.dialog:visible').length > 0) { return false };
-    let color = workspace.selectedColor;
-    // Right mouse OR Shift+Left acts as background draw
-    if (event.buttons === 2 || (event.buttons === 1 && event.shiftKey)) {
-        color = 0;
-    }
+    if (player || $('.dialog:visible').length > 0) { return; }
+    const color = getStrokeColor(event);
     currentCell = locateCell(event, event.currentTarget);
     setColorOn(currentCell.col, currentCell.row, color);
 };
 
-const onPointerDown = (event) => {
-    if (player || $('.dialog:visible').length > 0) { return false };
-    if (event.button > 2) { return false };
-    event.preventDefault();
+const startDrawing = (event) => {
+    if (player || $('.dialog:visible').length > 0) { return; }
+    const e = nativeEvent(event);
+    if (e.button > 2) { return; }
     isDrawing = true;
-    event.currentTarget.setPointerCapture(event.pointerId);
     paintOnCanvas(event);
+    if (e.pointerId !== undefined && e.currentTarget.setPointerCapture) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    e.preventDefault();
 };
 
-const onPointerUp = (event) => {
-    if (!isDrawing) { return false };
+const stopDrawing = (event) => {
+    if (!isDrawing) { return; }
+    if (!beforeDrawingState) {
+        paintOnCanvas(event);
+    }
     isDrawing = false;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
+    const e = nativeEvent(event);
+    if (e.pointerId !== undefined && e.currentTarget.releasePointerCapture) {
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) {}
     }
     drawingEnded();
 };
@@ -457,17 +468,26 @@ const clickRightOnCanvas = (event) => {
 }
 
 const drawingEnded = () => {
-    if (!beforeDrawingState) { return; }
-    pushUndo('drawing', beforeDrawingState);
+    if (beforeDrawingState) {
+        pushUndo('drawing', beforeDrawingState);
+    }
     beforeDrawingState = null;
     drawEditor();
     storeWorkspace();
 }
 
-const onPointerCancel = (event) => {
-    if (!isDrawing) { return false };
+const cancelDrawing = () => {
+    if (!isDrawing) { return; }
     isDrawing = false;
     drawingEnded();
+};
+
+const bindCanvasInput = (canvas) => {
+    canvas.addEventListener('pointerdown', startDrawing);
+    canvas.addEventListener('pointermove', onCanvasMove);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointercancel', cancelDrawing);
+    canvas.addEventListener('contextmenu', clickRightOnCanvas);
 };
 
 const getWidthMultiplier = () => options.squarePixel?1:1.2;
@@ -486,16 +506,12 @@ const newCanvas = () => {
     const cnv = $('<canvas/>')
     .attr('id','editor_canvas')
     .attr('width',editorWindow.swidth)
-    .attr('height',editorWindow.sheight)
-    .contextmenu(clickRightOnCanvas)
-    .on('pointerdown', onPointerDown)
-    .on('pointermove', onCanvasMove)
-    .on('pointerup', onPointerUp)
-    .on('pointercancel', onPointerCancel);
+    .attr('height',editorWindow.sheight);
 
     $('#editor_box').append(cnv);
     editorCanvasEl = cnv[0];
-    editor = cnv[0].getContext('2d');
+    editor = editorCanvasEl.getContext('2d');
+    bindCanvasInput(editorCanvasEl);
     //editor.translate(0.5, 0.5);
     //editor.imageSmoothingEnabled = false;
 }
