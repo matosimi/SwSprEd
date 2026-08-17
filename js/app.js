@@ -2,8 +2,8 @@ const GRID_COLOR = 'rgba(200,200,200,0.3)';
 const MAX_FILESIZE = 640 * 1024;
 const swsprHeader = [0x53,0x77,0x53,0x70,0x72,0x21];
 const defaultOptions = {
-    version: '1.0.1',
-	releaseDate: '15.06.2025',
+    version: '1.0.2',
+	releaseDate: '17.08.2026',
     storageName: 'SwSprEdStore',
     undoLevels: 128,
     lineResolution: 2,
@@ -341,35 +341,65 @@ const sameCell = (c,n) => {
     return true;
 }
 
-const locateCell = (event) => {
-    const cell = {};
-    const x = event.offsetX; 
-    const y = event.offsetY; 
-    cell.row = Math.floor(y/editorWindow.cyoffset);
-    cell.col = Math.floor(x/editorWindow.cxoffset);
-    return cell;
-}
+let isDrawing = false;
+let editorCanvasEl = null;
+
+const getCanvasCoords = (event, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+    };
+};
+
+const locateCell = (event, canvas) => {
+    const coords = getCanvasCoords(event, canvas || editorCanvasEl);
+    return {
+        row: Math.floor(coords.y / editorWindow.cyoffset),
+        col: Math.floor(coords.x / editorWindow.cxoffset)
+    };
+};
 
 const onCanvasMove = (event) => {
     if (player || $('.dialog:visible').length > 0) { return false };
-    const newCell = locateCell(event);
-    if (!sameCell(currentCell,newCell)) {
-        if (event.buttons > 0) {
-            clickOnCanvas(event);
+    const newCell = locateCell(event, event.currentTarget);
+    if (!sameCell(currentCell, newCell)) {
+        if (isDrawing || event.buttons > 0) {
+            paintOnCanvas(event);
         }
     }
-}
+};
 
-const clickOnCanvas = (event) => {
+const paintOnCanvas = (event) => {
     if (player || $('.dialog:visible').length > 0) { return false };
     let color = workspace.selectedColor;
-		// Right mouse OR Shift+Left acts as background draw
+    // Right mouse OR Shift+Left acts as background draw
     if (event.buttons === 2 || (event.buttons === 1 && event.shiftKey)) {
-            color = 0;
+        color = 0;
     }
-    currentCell = locateCell(event);
-    setColorOn(currentCell.col,currentCell.row,color);
-}
+    currentCell = locateCell(event, event.currentTarget);
+    setColorOn(currentCell.col, currentCell.row, color);
+};
+
+const onPointerDown = (event) => {
+    if (player || $('.dialog:visible').length > 0) { return false };
+    if (event.button > 2) { return false };
+    event.preventDefault();
+    isDrawing = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    paintOnCanvas(event);
+};
+
+const onPointerUp = (event) => {
+    if (!isDrawing) { return false };
+    isDrawing = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    drawingEnded();
+};
 
 const clickRightOnCanvas = (event) => {
     if (player || $('.dialog:visible').length > 0) { return false };
@@ -378,18 +408,18 @@ const clickRightOnCanvas = (event) => {
 }
 
 const drawingEnded = () => {
+    if (!beforeDrawingState) { return; }
     pushUndo('drawing', beforeDrawingState);
     beforeDrawingState = null;
     drawEditor();
     storeWorkspace();
 }
 
-const onMouseOut = (e) => {
-    if (player) { return false };
-    if (e.buttons > 0) {
-        drawingEnded();
-    }
-}
+const onPointerCancel = (event) => {
+    if (!isDrawing) { return false };
+    isDrawing = false;
+    drawingEnded();
+};
 
 const getWidthMultiplier = () => options.squarePixel?1:1.2;
 
@@ -409,12 +439,13 @@ const newCanvas = () => {
     .attr('width',editorWindow.swidth)
     .attr('height',editorWindow.sheight)
     .contextmenu(clickRightOnCanvas)
-    .bind('mousedown',clickOnCanvas)
-    .bind('mousemove',onCanvasMove)
-    .bind('mouseup',drawingEnded)
-    .bind('mouseleave',onMouseOut)
+    .on('pointerdown', onPointerDown)
+    .on('pointermove', onCanvasMove)
+    .on('pointerup', onPointerUp)
+    .on('pointercancel', onPointerCancel);
 
     $('#editor_box').append(cnv);
+    editorCanvasEl = cnv[0];
     editor = cnv[0].getContext('2d');
     //editor.translate(0.5, 0.5);
     //editor.imageSmoothingEnabled = false;
@@ -1826,14 +1857,14 @@ $(document).ready(function () {
     app.addMenuItem('Flip-V', saveUndo('flip v', flipVFrame), 'framemenu', 'Flips frame vertically');
 		app.addMenuItem('Inverse', saveUndo('inverse', inverseFrame), 'framemenu', 'Inverses frame bytes (useful for masking)');
     app.addSeparator('framemenu');
-    app.addMenuItem('&#129092;', saveUndo('move left', moveFrameLeft), 'framemenu', 'Moves frame contents left');
-    app.addMenuItem('&#129094;', saveUndo('move right', moveFrameRight), 'framemenu', 'Moves frame contents right');
-    app.addMenuItem('&#129093;', saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
-    app.addMenuItem('&#129095;', saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
+    app.addMenuItem(app.menuIcon('arrowLeft'), saveUndo('move left', moveFrameLeft), 'framemenu', 'Moves frame contents left');
+    app.addMenuItem(app.menuIcon('arrowRight'), saveUndo('move right', moveFrameRight), 'framemenu', 'Moves frame contents right');
+    app.addMenuItem(app.menuIcon('arrowUp'), saveUndo('move up', moveFrameUp), 'framemenu', 'Moves frame contents up');
+    app.addMenuItem(app.menuIcon('arrowDown'), saveUndo('move down', moveFrameDown), 'framemenu', 'Moves frame contents down');
     app.addSeparator('framemenu');
     
-    app.addMenuItem('&#9654;', startPlayer, 'timemenu', 'Starts Animation [Space]');
-    app.addMenuItem('&#9209;', stopPlayer, 'timemenu', 'Stops Animation [Space]');
+    app.addMenuItem(app.menuIcon('play'), startPlayer, 'timemenu', 'Starts Animation [Space]');
+    app.addMenuItem(app.menuIcon('stop'), stopPlayer, 'timemenu', 'Stops Animation [Space]');
     app.addSeparator('timemenu');
     app.addMenuItem('Add', saveUndo('add frame', addFrame), 'timemenu', 'Adds new empty frame');
     app.addMenuItem('Clone', saveUndo('clone frame', cloneFrame), 'timemenu', 'Adds copy of frame');
@@ -1841,8 +1872,8 @@ $(document).ready(function () {
     app.addSeparator('timemenu');
 		app.addMenuItem('Import frame', saveUndo('import frame', toggleImportFrame), 'timemenu', 'Imports a frame');
 		app.addSeparator('timemenu');
-    app.addMenuItem('&#129092;&#128913;', animFrameLeft, 'timemenu', 'Moves current frame left');
-    app.addMenuItem('&#128913;&#129094;', animFrameRight, 'timemenu', 'Moves current frame right');
+    app.addMenuItem(app.menuIcon('frameLeft'), animFrameLeft, 'timemenu', 'Moves current frame left');
+    app.addMenuItem(app.menuIcon('frameRight'), animFrameRight, 'timemenu', 'Moves current frame right');
     app.addSeparator('timemenu');
     app.addMenuItem('Delete All', deleteAll, 'timemenu', 'Clears and deletes all frames');
 

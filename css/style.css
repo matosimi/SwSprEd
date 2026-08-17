@@ -63,6 +63,24 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
+.menuitem-icon {
+  padding: 4px 8px;
+  min-width: 28px;
+  text-align: center;
+  line-height: 18px;
+}
+
+.menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.menu-icon svg {
+  display: block;
+}
+
 .menuseparator {
   display: block;
   float: left;
@@ -304,12 +322,16 @@ input:disabled {
   border-radius: 0;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  touch-action: none;
+  -ms-touch-action: none;
 }
 
 #editor_canvas {
   position: relative;
   background-color: #000;
   border-radius: 0;
+  touch-action: none;
+  -ms-touch-action: none;
 }
 
 #color_box {
